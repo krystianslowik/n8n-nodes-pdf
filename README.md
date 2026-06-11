@@ -39,6 +39,17 @@ new file, writes it to a binary property under an **Options** collection
 | Reorder | Change the order of pages |
 | Delete Pages | Remove a set of pages |
 
+**Item cardinality:** Merge and Split are the two operations that don't map
+one input item to one output item. Merge has a **Merge From** setting —
+**All Incoming Items** (default) reads one PDF per incoming item from the
+same binary field, and **Listed Binary Properties** reads an explicit,
+ordered, comma-separated list of binary field names (so a single item
+carrying several named PDF binaries can be merged too) — either way, all
+incoming items are combined into **one** output item. Split does the
+opposite: **one** incoming item becomes **one output item per page range**
+in its `Page Ranges` parameter. Every other operation in this node is 1
+input item → 1 output item.
+
 ### Generate
 
 | Operation | Description |
@@ -71,6 +82,12 @@ new file, writes it to a binary property under an **Options** collection
 | Metadata | Extract document metadata (title, author, dates, etc.) |
 | Embedded Images | Extract images embedded in the PDF |
 | Page Count | Get the number of pages in the PDF |
+
+**Note:** Embedded Images is the one operation that deviates from the
+"Output Binary Property + Output File Name" pair above — it can emit any
+number of images per PDF, so it instead takes an **Output Binary Property
+Prefix** (default `image`) and writes each extracted image to its own binary
+field (`image0`, `image1`, ...) on the output item.
 
 ### Secure
 

@@ -11,6 +11,8 @@ import {
 	documentBinaryInputParamMap,
 	documentDescription,
 	documentExecuteMap,
+	documentManyToOneExecuteMap,
+	documentOneToManyExecuteMap,
 } from './resources/document';
 import { extractBinaryInputParamMap, extractDescription, extractExecuteMap } from './resources/extract';
 import { formBinaryInputParamMap, formDescription, formExecuteMap } from './resources/form';
@@ -21,7 +23,12 @@ import {
 } from './resources/generate';
 import { secureBinaryInputParamMap, secureDescription, secureExecuteMap } from './resources/secure';
 import { stampBinaryInputParamMap, stampDescription, stampExecuteMap } from './resources/stamp';
-import type { BinaryInputParamMap, ExecuteMap } from './shared/types';
+import type {
+	BinaryInputParamMap,
+	ExecuteMap,
+	ManyToOneExecuteMap,
+	OneToManyExecuteMap,
+} from './shared/types';
 
 const resourceProperty: INodeProperties = {
 	displayName: 'Resource',
@@ -61,6 +68,20 @@ const binaryInputParamMaps: Record<string, BinaryInputParamMap> = {
 	secure: secureBinaryInputParamMap,
 };
 
+// Many-to-one (e.g. Document > Merge: N incoming items → 1 output item) and
+// one-to-many (e.g. Document > Split: 1 incoming item → N output items)
+// operations. Only Document currently has non-itemwise operations, but every
+// resource is wired here so a future resource can register one without
+// touching `execute()` again. See `shared/types.ts` for why itemwise
+// per-item calls can't express either cardinality.
+const manyToOneExecuteMaps: Record<string, ManyToOneExecuteMap> = {
+	document: documentManyToOneExecuteMap,
+};
+
+const oneToManyExecuteMaps: Record<string, OneToManyExecuteMap> = {
+	document: documentOneToManyExecuteMap,
+};
+
 export class PdfToolkit implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'PDF Toolkit',
@@ -96,11 +117,46 @@ export class PdfToolkit implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
+		if (items.length === 0) {
+			return [returnData];
+		}
+
+		// `resource` and `operation` are plain dropdowns with `noDataExpression:
+		// true` (see `resourceProperty` above and every `*Operations` property
+		// in `resources/**/index.ts`), so their value can't vary per item via an
+		// expression — it's safe (and the standard n8n idiom) to read them once
+		// from item 0 to decide whether this execution is many-to-one, rather
+		// than re-reading them on every loop iteration.
+		const resource = this.getNodeParameter('resource', 0) as string;
+		const operation = this.getNodeParameter('operation', 0) as string;
+
+		const manyToOneExecute = manyToOneExecuteMaps[resource]?.[operation];
+		if (manyToOneExecute) {
+			// Many-to-one cardinality (e.g. Document > Merge — PRD: "Batch-aware:
+			// ... merge N items → 1"): call once for every incoming item, not
+			// once per item. There's no single failing item to blame, so on
+			// error we tag every input item as the `pairedItem` source instead of
+			// a single `itemIndex`.
+			try {
+				returnData.push(await manyToOneExecute.call(this, items));
+			} catch (error) {
+				if (this.continueOnFail()) {
+					returnData.push({
+						json: {},
+						error,
+						pairedItem: items.map((_item, itemIndex) => ({ item: itemIndex })),
+					});
+				} else {
+					throw error instanceof NodeOperationError
+						? error
+						: new NodeOperationError(this.getNode(), error as Error);
+				}
+			}
+			return [returnData];
+		}
+
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				const resource = this.getNodeParameter('resource', itemIndex) as string;
-				const operation = this.getNodeParameter('operation', itemIndex) as string;
-
 				// Resolve (and validate) the binary input BEFORE calling the
 				// operation's stub, per the scaffold spec. This throws a clear,
 				// operation-naming error if the configured binary field is missing
@@ -114,6 +170,16 @@ export class PdfToolkit implements INodeType {
 						'data',
 					) as string;
 					this.helpers.assertBinaryData(itemIndex, binaryPropertyName);
+				}
+
+				const oneToManyExecute = oneToManyExecuteMaps[resource]?.[operation];
+				if (oneToManyExecute) {
+					// One-to-many cardinality (e.g. Document > Split — PRD:
+					// "Batch-aware: ... split 1 → N items"): still one input item
+					// per call, but push every output item the call returns instead
+					// of assuming exactly one.
+					returnData.push(...(await oneToManyExecute.call(this, itemIndex)));
+					continue;
 				}
 
 				const executeOperation = executeMaps[resource]?.[operation];

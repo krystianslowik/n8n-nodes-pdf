@@ -15,9 +15,15 @@ export const splitDescription: INodeProperties[] = [
 // TODO: implement with pdf-lib (parse the page-range string, then
 // PdfDocument.copyPages once per range, emitting one output item per range)
 // once the bundling strategy for PRD open question O1 is resolved.
+//
+// One-to-many cardinality (PRD: "Batch-aware: ... split 1 → N items"): this
+// still consumes exactly one input item (itemIndex), but returns an array so
+// it can emit zero or more output items — see `OneToManyExecuteMap` in
+// `shared/types.ts` and the dispatch in `PdfToolkit.node.ts`, which pushes
+// every item this returns instead of assuming exactly one.
 export async function splitExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
-): Promise<INodeExecutionData> {
+): Promise<INodeExecutionData[]> {
 	return throwNotImplemented.call(this, 'Split', itemIndex);
 }

@@ -19,15 +19,19 @@ import { NodeOperationError } from 'n8n-workflow';
  *   trace, per the PRD's UX principles), and
  * - the error always carries `itemIndex` so it can be handled by
  *   `continueOnFail()` in `PdfToolkit.node.ts`.
+ *
+ * `itemIndex` is optional because many-to-one operations (e.g. Document >
+ * Merge) run once across ALL incoming items rather than for a single item,
+ * so there's no single item to anchor the error to.
  */
 export function throwNotImplemented(
 	this: IExecuteFunctions,
 	operationLabel: string,
-	itemIndex: number,
+	itemIndex?: number,
 ): never {
 	throw new NodeOperationError(
 		this.getNode(),
 		`The "${operationLabel}" operation is not implemented yet`,
-		{ itemIndex },
+		itemIndex === undefined ? {} : { itemIndex },
 	);
 }

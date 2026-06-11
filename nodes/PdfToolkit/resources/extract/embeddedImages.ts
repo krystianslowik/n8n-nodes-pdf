@@ -5,6 +5,15 @@ import { throwNotImplemented } from '../../shared/notImplemented';
 
 const showOnlyForEmbeddedImages = { resource: ['extract'], operation: ['embeddedImages'] };
 
+// Intentional exception to the common-params spec's "Output Binary Property"
+// + "Output File Name" pair: Embedded Images emits a *variable* number of
+// images (zero or more per PDF), not a single output file, so there's no one
+// binary field/file name to configure. A "Output Binary Property Prefix"
+// option is used instead — each extracted image lands on its own binary
+// field (`<prefix>0`, `<prefix>1`, ...) on the same output item, which is the
+// standard n8n convention for operations that produce N binaries per item
+// (e.g. core "Extract from File" >  Move to a specific binary property /
+// "Read/Write Files from Disk" with multiple files).
 export const extractEmbeddedImagesDescription: INodeProperties[] = [
 	binaryPropertyField('extract', 'embeddedImages'),
 	{
