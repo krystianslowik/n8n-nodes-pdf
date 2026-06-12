@@ -3,7 +3,9 @@ import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n
 import { binaryPropertyField } from '../../shared/descriptions';
 import { throwNotImplemented } from '../../shared/notImplemented';
 
-export const extractMetadataDescription: INodeProperties[] = [binaryPropertyField('extract', 'metadata')];
+export const extractMetadataDescription: INodeProperties[] = [
+	binaryPropertyField('extract', 'metadata'),
+];
 
 // TODO: implement with pdfjs-dist (getDocument().getMetadata(), mapped to
 // JSON: title, author, subject, keywords, creator, producer, creation/mod

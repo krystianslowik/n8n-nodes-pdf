@@ -16,7 +16,7 @@ const formOperations: INodeProperties = {
 		{
 			name: 'Read Fields',
 			value: 'readFields',
-			description: 'Read a PDF form\'s fields into JSON',
+			description: "Read a PDF form's fields into JSON",
 			action: 'Read fields from a PDF form',
 		},
 		{

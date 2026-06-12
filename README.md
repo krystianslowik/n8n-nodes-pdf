@@ -39,16 +39,18 @@ new file, writes it to a binary property under an **Options** collection
 | Reorder | Change the order of pages |
 | Delete Pages | Remove a set of pages |
 
-**Item cardinality:** Merge and Split are the two operations that don't map
-one input item to one output item. Merge has a **Merge From** setting —
-**All Incoming Items** (default) reads one PDF per incoming item from the
-same binary field, and **Listed Binary Properties** reads an explicit,
-ordered, comma-separated list of binary field names (so a single item
-carrying several named PDF binaries can be merged too) — either way, all
+**Item cardinality:** Merge and Split are the two Document operations that
+don't map one input item to one output item. Merge has a **Merge From**
+setting — **All Incoming Items** (default) reads one PDF per incoming item
+from the same binary field, and **Listed Binary Properties** reads an
+explicit, ordered, comma-separated list of binary field names (so a single
+item carrying several named PDF binaries can be merged too) — either way, all
 incoming items are combined into **one** output item. Split does the
 opposite: **one** incoming item becomes **one output item per page range**
-in its `Page Ranges` parameter. Every other operation in this node is 1
-input item → 1 output item.
+in its `Page Ranges` parameter. Generate → **From Images** (below) has the
+same many-to-one cardinality as Merge: it reads one image per incoming item,
+in input order, and combines them into **one** output PDF with one page per
+image. Every other operation in this node is 1 input item → 1 output item.
 
 ### Generate
 
@@ -56,7 +58,7 @@ input item → 1 output item.
 |---|---|
 | From Template | Generate a PDF from a declarative JSON template (text/table/image/list blocks) |
 | From Markdown | Generate a PDF from Markdown (headings, lists, tables, code) |
-| From Images | Generate a PDF with one image per page — **drop-in `n8n-nodes-pdfkit` replacement** |
+| From Images | Combine one image per incoming item (in input order) into a single multi-page PDF — **drop-in `n8n-nodes-pdfkit` replacement** |
 
 ### Form
 

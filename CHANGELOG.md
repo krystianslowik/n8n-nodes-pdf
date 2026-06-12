@@ -20,6 +20,12 @@ All notable changes to this project will be documented in this file.
   of the usual `Output Binary Property` + `Output File Name` pair) is now
   called out in-code and in the README as an intentional exception, since
   that operation can emit any number of images per PDF.
+- Generate > From Images is now dispatched many-to-one (all incoming image
+  items combined into one output PDF), matching its own description text
+  ("Images are added in input order") and PRD F7's pdfkit-node parity
+  requirement. It was previously wired itemwise, which would have produced N
+  separate 1-page PDFs instead of one combined N-page PDF — the same bug
+  class already fixed for Document > Merge above.
 
 ## 0.1.0 - 2026-07-06
 

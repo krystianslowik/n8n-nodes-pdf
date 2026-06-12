@@ -33,9 +33,24 @@ export const fromImagesDescription: INodeProperties[] = [
 // TODO: implement with pdfmake (one page per incoming image binary, scaled
 // to the chosen page size) once the bundling strategy for PRD open question
 // O1 is resolved.
+//
+// Many-to-one cardinality (PRD F7 / README migration note: "Images→PDF, the
+// n8n-nodes-pdfkit parity op" — pdfkit-node itself combines every incoming
+// image into ONE multi-page PDF). This mirrors Document > Merge: called ONCE
+// per node execution with every incoming item, not once per item — see
+// `ManyToOneExecuteMap` in `shared/types.ts` and the dispatch in
+// `PdfToolkit.node.ts`. There's no single `itemIndex` to blame a failure on
+// here, so binary-input validation (`this.helpers.assertBinaryData`) for the
+// image field on each item belongs inside this function once implemented,
+// not in the generic per-item pre-check `PdfToolkit.node.ts` does for
+// itemwise operations.
 export async function fromImagesExecute(
 	this: IExecuteFunctions,
-	itemIndex: number,
+	items: INodeExecutionData[],
 ): Promise<INodeExecutionData> {
-	return throwNotImplemented.call(this, 'From Images', itemIndex);
+	// `items` isn't read yet (the whole body is a stub), but it's kept as a
+	// named, real parameter — matching the many-to-one signature the real
+	// implementation will use — rather than dropped or prefixed `_`.
+	void items;
+	return throwNotImplemented.call(this, 'From Images');
 }

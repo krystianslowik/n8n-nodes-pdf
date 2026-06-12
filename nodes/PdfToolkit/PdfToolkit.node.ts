@@ -14,12 +14,17 @@ import {
 	documentManyToOneExecuteMap,
 	documentOneToManyExecuteMap,
 } from './resources/document';
-import { extractBinaryInputParamMap, extractDescription, extractExecuteMap } from './resources/extract';
+import {
+	extractBinaryInputParamMap,
+	extractDescription,
+	extractExecuteMap,
+} from './resources/extract';
 import { formBinaryInputParamMap, formDescription, formExecuteMap } from './resources/form';
 import {
 	generateBinaryInputParamMap,
 	generateDescription,
 	generateExecuteMap,
+	generateManyToOneExecuteMap,
 } from './resources/generate';
 import { secureBinaryInputParamMap, secureDescription, secureExecuteMap } from './resources/secure';
 import { stampBinaryInputParamMap, stampDescription, stampExecuteMap } from './resources/stamp';
@@ -68,14 +73,16 @@ const binaryInputParamMaps: Record<string, BinaryInputParamMap> = {
 	secure: secureBinaryInputParamMap,
 };
 
-// Many-to-one (e.g. Document > Merge: N incoming items → 1 output item) and
-// one-to-many (e.g. Document > Split: 1 incoming item → N output items)
-// operations. Only Document currently has non-itemwise operations, but every
-// resource is wired here so a future resource can register one without
-// touching `execute()` again. See `shared/types.ts` for why itemwise
-// per-item calls can't express either cardinality.
+// Many-to-one (e.g. Document > Merge: N incoming items → 1 output item, or
+// Generate > From Images: N incoming image items → 1 combined multi-page PDF
+// — PRD F7) and one-to-many (e.g. Document > Split: 1 incoming item → N
+// output items) operations. Every resource is wired here so a future
+// resource can register one without touching `execute()` again. See
+// `shared/types.ts` for why itemwise per-item calls can't express either
+// cardinality.
 const manyToOneExecuteMaps: Record<string, ManyToOneExecuteMap> = {
 	document: documentManyToOneExecuteMap,
+	generate: generateManyToOneExecuteMap,
 };
 
 const oneToManyExecuteMaps: Record<string, OneToManyExecuteMap> = {

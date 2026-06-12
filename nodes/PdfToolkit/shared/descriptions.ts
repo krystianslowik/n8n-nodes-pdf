@@ -31,8 +31,7 @@ export function binaryPropertyField(
 		required: true,
 		displayOptions: { show: { resource: [resource], operation: [operation] } },
 		description:
-			options.description ??
-			'Name of the input binary field that contains the PDF file to use',
+			options.description ?? 'Name of the input binary field that contains the PDF file to use',
 	};
 }
 
