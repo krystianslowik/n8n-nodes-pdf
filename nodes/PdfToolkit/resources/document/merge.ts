@@ -1,7 +1,8 @@
+import { PDFDocument } from 'pdf-lib';
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
+import { NodeOperationError } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField } from '../../shared/descriptions';
-import { throwNotImplemented } from '../../shared/notImplemented';
 
 const showOnlyForMerge = { resource: ['document'], operation: ['merge'] };
 
@@ -59,26 +60,82 @@ export const mergeDescription: INodeProperties[] = [
 	outputOptionsField('document', 'merge', [], 'merged.pdf'),
 ];
 
-// TODO: implement with pdf-lib (PdfDocument.copyPages across every resolved
+// Implemented with pdf-lib (PDFDocument.copyPages across every resolved
 // binary, preserving item order for `allItems` and item-then-list order for
-// `binaryProperties`) once the bundling strategy for PRD open question O1 is
-// resolved.
+// `binaryProperties`).
 //
 // Many-to-one cardinality (PRD: "Batch-aware: ... merge N items → 1"): this
 // is called ONCE per node execution with every incoming item, not once per
 // item — see `ManyToOneExecuteMap` in `shared/types.ts` and the dispatch in
 // `PdfToolkit.node.ts`. There's no single `itemIndex` to blame a failure on
 // here, so binary-input validation (`this.helpers.assertBinaryData`) for
-// whichever items/properties this mode selects belongs inside this function
-// once implemented, not in the generic pre-check `PdfToolkit.node.ts` does
-// for itemwise operations.
+// whichever items/properties this mode selects happens inside this function,
+// not in the generic pre-check `PdfToolkit.node.ts` does for itemwise
+// operations.
 export async function mergeExecute(
 	this: IExecuteFunctions,
 	items: INodeExecutionData[],
 ): Promise<INodeExecutionData> {
-	// `items` isn't read yet (the whole body is a stub), but it's kept as a
-	// named, real parameter — matching the many-to-one signature the real
-	// implementation will use — rather than dropped or prefixed `_`.
-	void items;
-	return throwNotImplemented.call(this, 'Merge');
+	const mergeFrom = this.getNodeParameter('mergeFrom', 0, 'allItems') as string;
+	const options = this.getNodeParameter('options', 0, {}) as {
+		outputBinaryPropertyName?: string;
+		outputFileName?: string;
+	};
+
+	// Ordered list of (item, binary field) sources to merge, in the exact
+	// order they should end up in the merged output.
+	const sources: Array<{ itemIndex: number; binaryPropertyName: string }> = [];
+
+	if (mergeFrom === 'binaryProperties') {
+		const binaryPropertyNames = (this.getNodeParameter('binaryPropertyNames', 0, 'data') as string)
+			.split(',')
+			.map((name) => name.trim())
+			.filter((name) => name.length > 0);
+
+		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+			for (const binaryPropertyName of binaryPropertyNames) {
+				if (items[itemIndex].binary?.[binaryPropertyName]) {
+					sources.push({ itemIndex, binaryPropertyName });
+				}
+			}
+		}
+	} else {
+		const binaryPropertyName = this.getNodeParameter('binaryPropertyName', 0, 'data') as string;
+		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+			sources.push({ itemIndex, binaryPropertyName });
+		}
+	}
+
+	if (sources.length === 0) {
+		throw new NodeOperationError(this.getNode(), 'Merge found no PDF binaries to combine');
+	}
+
+	const mergedPdf = await PDFDocument.create();
+
+	for (const source of sources) {
+		this.helpers.assertBinaryData(source.itemIndex, source.binaryPropertyName);
+		const buffer = await this.helpers.getBinaryDataBuffer(
+			source.itemIndex,
+			source.binaryPropertyName,
+		);
+		const sourcePdf = await PDFDocument.load(buffer);
+		const copiedPages = await mergedPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
+		for (const page of copiedPages) {
+			mergedPdf.addPage(page);
+		}
+	}
+
+	const mergedBytes = await mergedPdf.save();
+	const outputFileName = options.outputFileName ?? 'merged.pdf';
+	const binaryData = await this.helpers.prepareBinaryData(
+		Buffer.from(mergedBytes),
+		outputFileName,
+		'application/pdf',
+	);
+
+	return {
+		json: { pageCount: mergedPdf.getPageCount() },
+		binary: { [options.outputBinaryPropertyName ?? 'data']: binaryData },
+		pairedItem: items.map((_item, itemIndex) => ({ item: itemIndex })),
+	};
 }

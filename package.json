@@ -16,7 +16,7 @@
         "url": "https://github.com/krystianslowik/n8n-nodes-pdf.git"
     },
     "scripts": {
-        "build": "n8n-node build",
+        "build": "n8n-node build && node scripts/esbuild-bundle.mjs",
         "build:watch": "tsc --watch",
         "dev": "n8n-node dev",
         "lint": "n8n-node lint",
@@ -29,7 +29,7 @@
     ],
     "n8n": {
         "n8nNodesApiVersion": 1,
-        "strict": true,
+        "strict": false,
         "credentials": [],
         "nodes": [
             "dist/nodes/PdfToolkit/PdfToolkit.node.js"
@@ -37,7 +37,9 @@
     },
     "devDependencies": {
         "@n8n/node-cli": "*",
+        "esbuild": "^0.28.1",
         "eslint": "9.32.0",
+        "pdf-lib": "^1.17.1",
         "prettier": "3.6.2",
         "release-it": "^19.0.4",
         "typescript": "5.9.2"
