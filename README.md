@@ -150,6 +150,17 @@ naming the library that operation will use once O1 is resolved:
 - **Generate** → `pdfmake`
 - **Extract** → `pdfjs-dist`
 
+**Note on n8n Cloud verification eligibility:** `pdf-lib` is bundled into
+`dist/` at build time (esbuild), so the published package declares zero
+runtime dependencies, and the built artifact passes the community-node
+scanner's own local static-analysis check (`analyzePackage()`) with 0
+errors. That is **not** the same as "verified for n8n Cloud" — the
+published-package scanner CLI (a post-publish, registry-lookup-based gate),
+human review, and PRD open question O1 (utility-node eligibility) are all
+still open. See `spike/FINDINGS.md` (Q2) for the full, honest writeup,
+including a documented event-loop-yielding tradeoff introduced by the
+bundling shim (`scripts/shims/yield.js`).
+
 ## Migrating from n8n-nodes-pdfkit
 
 If you're coming from `n8n-nodes-pdfkit` (images → PDF only, last published

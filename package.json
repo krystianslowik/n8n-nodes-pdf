@@ -16,11 +16,13 @@
         "url": "https://github.com/krystianslowik/n8n-nodes-pdf.git"
     },
     "scripts": {
-        "build": "n8n-node build",
+        "build": "n8n-node build && node scripts/esbuild-bundle.mjs",
         "build:watch": "tsc --watch",
         "dev": "n8n-node dev",
         "lint": "n8n-node lint",
         "lint:fix": "n8n-node lint --fix",
+        "spike:harness": "node spike/harness.mjs",
+        "spike:analyze": "node spike/drive-analyze.mjs",
         "release": "n8n-node release",
         "prepublishOnly": "n8n-node prerelease"
     },
@@ -37,7 +39,10 @@
     },
     "devDependencies": {
         "@n8n/node-cli": "*",
+        "@n8n/scan-community-package": "^0.24.0",
+        "esbuild": "^0.28.1",
         "eslint": "9.32.0",
+        "pdf-lib": "^1.17.1",
         "prettier": "3.6.2",
         "release-it": "^19.0.4",
         "typescript": "5.9.2"

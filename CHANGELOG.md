@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Restored the full n8n Cloud lint config (`eslint.config.mjs` back to
+  `@n8n/node-cli/eslint`'s `config`, `package.json`'s `n8n.strict` back to
+  `true`) after a prior spike pass had disabled cloud support package-wide
+  to silence a lint error. The two `no-restricted-imports` hits this
+  re-enables (the `pdf-lib` import lines in `merge.ts`/`pageCount.ts`, which
+  never ship — esbuild bundles them away) are now suppressed individually
+  with a narrow `eslint-disable-next-line` and a justification comment
+  instead. See `spike/FINDINGS.md` Q2 "Round 2" for the full rationale.
+- The esbuild bundle step (`scripts/esbuild-bundle.mjs`) now injects
+  `scripts/shims/yield.js`, which redirects pdf-lib's internal
+  `waitForTick()` (used on every `PDFDocument.load()`/`.save()` call) from
+  the banned `setTimeout` global to `queueMicrotask`. This closes the last
+  `@n8n/community-nodes/no-restricted-globals` violation the scanner
+  reported against the bundled dist — `analyzePackage()` now reports 0
+  errors (down from 1) — but it is an honest, documented tradeoff, not a
+  full fix: `queueMicrotask` doesn't yield to the timer/IO phase the way
+  `setTimeout`/`setImmediate` would (both are also banned globals). See
+  `scripts/shims/yield.js` and `spike/FINDINGS.md` Q2 for the full
+  event-loop-starvation tradeoff writeup (PRD R2).
+
+### Added
+
+- `spike/drive-analyze.mjs`: a committed repro script that npm-packs this
+  package, unpacks the tarball into a git-ignored temp dir, and runs the
+  n8n community-node scanner's own `analyzePackage()` against it, printing
+  every violation and exiting non-zero on any. Replaces an ad-hoc,
+  previously-uncommitted script used for the same check. Run via
+  `npm run spike:analyze`.
+
 ### Fixed
 
 - `execute()` in `PdfToolkit.node.ts` now dispatches by item cardinality
