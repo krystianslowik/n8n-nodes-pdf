@@ -1,2 +1,7 @@
 dist
 node_modules
+*.tgz
+
+# spike/drive-analyze.mjs unpacks the npm-packed tarball here to run the
+# scanner's analyzePackage() against it locally. Never committed.
+spike/.analyze-tmp/
