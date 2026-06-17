@@ -12,7 +12,7 @@ fee, and no data ever leaves your machine.
 [Credentials](#credentials)
 [Compatibility](#compatibility)
 [Usage](#usage)
-[Status: scaffold](#status-scaffold)
+[Status: partial implementation](#status-partial-implementation)
 [Migrating from n8n-nodes-pdfkit](#migrating-from-n8n-nodes-pdfkit)
 [Resources](#resources)
 [Version history](#version-history)
@@ -130,25 +130,28 @@ If you expect to be new to n8n, see the
 [Try it out](https://docs.n8n.io/try-it-out/) documentation to get started
 with workflows generally.
 
-## Status: scaffold
+## Status: partial implementation
 
-**Every operation body in this version is a stub.** Each one throws a
-`NodeOperationError` naming the operation (e.g. `The "Merge" operation is not
-implemented yet`) instead of doing real PDF work. This is intentional: the
-node UI (resources, operations, parameters) and `execute()` routing are
-complete and stable, but the actual PDF logic is withheld pending the
+**The entire Document resource (Merge, Split, Extract Pages, Rotate,
+Reorder, Delete Pages) and Extract → Page Count are implemented for real**,
+backed by `pdf-lib`, and covered by tests in `tests/` (run with `npm run
+build && node tests/run-all.mjs`). Every other operation body (Generate,
+Form, Stamp, the rest of Extract, Secure) is still a stub: each one throws a
+`NodeOperationError` naming the operation (e.g. `The "Fill Form" operation is
+not implemented yet`) instead of doing real PDF work. The node UI (resources,
+operations, parameters) and `execute()` routing are complete and stable for
+all six resources; the remaining PDF logic is withheld pending the
 library-bundling decision in the PRD's **open question O1** — whether
 zero-external-service "utility" nodes like this one are eligible for n8n's
-community-node verification program, and (if so) how `pdf-lib` / `pdfmake` /
-`pdfjs-dist` get bundled into `dist/` without violating the
-zero-runtime-dependency rule.
+community-node verification program.
 
-Each stub file under `nodes/PdfToolkit/resources/**` carries a `TODO` comment
-naming the library that operation will use once O1 is resolved:
+Each remaining stub file under `nodes/PdfToolkit/resources/**` carries a
+`TODO` comment naming the library that operation will use once O1 is
+resolved:
 
-- **Document**, **Form**, **Stamp**, **Secure** → `pdf-lib`
+- **Form**, **Stamp**, **Secure** → `pdf-lib`
 - **Generate** → `pdfmake`
-- **Extract** → `pdfjs-dist`
+- **Extract** (Text, Metadata, Embedded Images) → `pdfjs-dist`
 
 **Note on n8n Cloud verification eligibility:** `pdf-lib` is bundled into
 `dist/` at build time (esbuild), so the published package declares zero
@@ -167,7 +170,7 @@ If you're coming from `n8n-nodes-pdfkit` (images → PDF only, last published
 2023-05-14), the **Generate → From Images** operation is the drop-in parity
 op: point it at the same image binaries you were feeding into
 `n8n-nodes-pdfkit`, and it produces the same one-image-per-page PDF. Once this
-package's operations are implemented (see [Status: scaffold](#status-scaffold)),
+package's operations are implemented (see [Status: partial implementation](#status-partial-implementation)),
 you'll be able to uninstall `n8n-nodes-pdfkit` entirely — this package also
 covers merge/split/watermark/forms/extraction/encryption, none of which
 `n8n-nodes-pdfkit` ever supported.

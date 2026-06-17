@@ -1,7 +1,8 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField, pageRangeField } from '../../shared/descriptions';
-import { throwNotImplemented } from '../../shared/notImplemented';
+import { parsePageRanges } from '../../shared/pageRanges';
+import { PDFDocument, loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
 
 export const extractPagesDescription: INodeProperties[] = [
 	binaryPropertyField('document', 'extractPages'),
@@ -11,12 +12,39 @@ export const extractPagesDescription: INodeProperties[] = [
 	outputOptionsField('document', 'extractPages', [], 'extracted-pages.pdf'),
 ];
 
-// TODO: implement with pdf-lib (parse the page-range string, then
-// PdfDocument.copyPages for the selected pages into one new document) once
-// the bundling strategy for PRD open question O1 is resolved.
+// Implemented with pdf-lib: parses the page-range expression into a single,
+// deduplicated selection (shared/pageRanges.ts's `parsePageRanges` — unlike
+// Split, every selected page lands in ONE output PDF, not one per range),
+// then copies exactly those pages into a new PDFDocument.
 export async function extractPagesExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
 ): Promise<INodeExecutionData> {
-	return throwNotImplemented.call(this, 'Extract Pages', itemIndex);
+	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
+	const pageRanges = this.getNodeParameter('pageRanges', itemIndex, '') as string;
+	const options = this.getNodeParameter('options', itemIndex, {}) as {
+		outputBinaryPropertyName?: string;
+		outputFileName?: string;
+	};
+
+	// Binary presence is already validated by `PdfToolkit.node.ts`'s generic
+	// itemwise pre-check (via `documentBinaryInputParamMap`) before this runs.
+	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+	const sourcePdf = await loadPdfDocument(buffer, this.getNode(), binaryPropertyName, itemIndex);
+	const pages = parsePageRanges(pageRanges, sourcePdf.getPageCount(), this.getNode(), itemIndex);
+
+	const outputPdf = await PDFDocument.create();
+	const copiedPages = await outputPdf.copyPages(sourcePdf, pages);
+	for (const page of copiedPages) {
+		outputPdf.addPage(page);
+	}
+
+	const outputFileName = options.outputFileName ?? 'extracted-pages.pdf';
+	const binaryData = await savePdfAsBinary(this, outputPdf, outputFileName);
+
+	return {
+		json: { pageCount: outputPdf.getPageCount() },
+		binary: { [options.outputBinaryPropertyName ?? 'data']: binaryData },
+		pairedItem: itemIndex,
+	};
 }

@@ -28,6 +28,32 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Document > Split, Extract Pages, Rotate, Reorder, and Delete Pages are now
+  implemented for real with `pdf-lib`, replacing their stubs (Document >
+  Merge and Extract > Page Count were already real). Split parses its
+  `Page Ranges` expression and emits **one output item per comma-separated
+  range** (PRD batch-awareness); Extract Pages flattens the same expression
+  into a single, deduplicated selection for one output PDF; Rotate honors
+  "all" or a page-range selection and *adds* the chosen angle to each page's
+  existing rotation; Reorder validates its `New Order` expression as a
+  complete permutation of the document's pages before reordering; Delete
+  Pages removes highest-index-first and refuses to delete every page. Page-
+  range parsing (`1-3,7,9-`-style expressions, including open-ended ranges)
+  is centralized in a new, unit-tested `nodes/PdfToolkit/shared/pageRanges.ts`
+  shared by all four range-consuming operations, and a new
+  `nodes/PdfToolkit/shared/pdf.ts` centralizes the `pdf-lib` import (behind
+  the same `no-restricted-imports` suppression pattern as `merge.ts`), a PRD
+  R2 100MB binary-size guard, and pdf-lib parse-error wrapping so failures
+  name the failing binary property/item instead of surfacing a raw pdf-lib
+  stack trace.
+- `tests/run-all.mjs`: a lightweight test runner (discovers every
+  `tests/**/*.test.mjs`, no external test-runner dependency) that drives the
+  REAL, BUILT dist artifact through a shared mocked `IExecuteFunctions`
+  (`tests/mock-execute.mjs`) for every Document operation, plus a
+  `tests/shared/pageRanges.test.mjs` unit-testing the range parser directly
+  (valid/open-ended/overlapping/invalid/out-of-range cases) via an
+  esbuild-on-the-fly loader (`tests/util/load-ts.mjs`). Run with
+  `npm run build && node tests/run-all.mjs`.
 - `spike/drive-analyze.mjs`: a committed repro script that npm-packs this
   package, unpacks the tarball into a git-ignored temp dir, and runs the
   n8n community-node scanner's own `analyzePackage()` against it, printing

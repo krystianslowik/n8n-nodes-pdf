@@ -1,7 +1,8 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField, pageRangeField } from '../../shared/descriptions';
-import { throwNotImplemented } from '../../shared/notImplemented';
+import { parsePageRanges } from '../../shared/pageRanges';
+import { degrees, loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
 
 export const rotateDescription: INodeProperties[] = [
 	binaryPropertyField('document', 'rotate'),
@@ -29,12 +30,52 @@ export const rotateDescription: INodeProperties[] = [
 	outputOptionsField('document', 'rotate', [], 'rotated.pdf'),
 ];
 
-// TODO: implement with pdf-lib (parse the page-range string, then
-// page.setRotation(degrees) for each selected page) once the bundling
-// strategy for PRD open question O1 is resolved.
+function normalizeAngle(angle: number): number {
+	return ((angle % 360) + 360) % 360;
+}
+
+// Implemented with pdf-lib: "all" (the default) rotates every page;
+// otherwise the page-range expression (shared/pageRanges.ts) selects which
+// pages get `page.setRotation()`. Rotation is ADDED to each page's existing
+// rotation (so rotating an already-90°-rotated page by another 90° yields
+// 180°), matching how PDF viewers apply /Rotate.
 export async function rotateExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
 ): Promise<INodeExecutionData> {
-	return throwNotImplemented.call(this, 'Rotate', itemIndex);
+	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
+	const pageRanges = this.getNodeParameter('pageRanges', itemIndex, 'all') as string;
+	const rotation = this.getNodeParameter('rotation', itemIndex, 90) as number;
+	const options = this.getNodeParameter('options', itemIndex, {}) as {
+		outputBinaryPropertyName?: string;
+		outputFileName?: string;
+	};
+
+	// Binary presence is already validated by `PdfToolkit.node.ts`'s generic
+	// itemwise pre-check (via `documentBinaryInputParamMap`) before this runs.
+	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+	const pdf = await loadPdfDocument(buffer, this.getNode(), binaryPropertyName, itemIndex);
+	const pageCount = pdf.getPageCount();
+
+	const normalizedRanges = pageRanges.trim().toLowerCase();
+	const isAllPages = normalizedRanges.length === 0 || normalizedRanges === 'all';
+	const pageIndices = isAllPages
+		? Array.from({ length: pageCount }, (_, index) => index)
+		: parsePageRanges(pageRanges, pageCount, this.getNode(), itemIndex);
+
+	const pages = pdf.getPages();
+	for (const pageIndex of pageIndices) {
+		const page = pages[pageIndex];
+		const newAngle = normalizeAngle(page.getRotation().angle + rotation);
+		page.setRotation(degrees(newAngle));
+	}
+
+	const outputFileName = options.outputFileName ?? 'rotated.pdf';
+	const binaryData = await savePdfAsBinary(this, pdf, outputFileName);
+
+	return {
+		json: { pageCount, rotatedPageCount: pageIndices.length },
+		binary: { [options.outputBinaryPropertyName ?? 'data']: binaryData },
+		pairedItem: itemIndex,
+	};
 }
