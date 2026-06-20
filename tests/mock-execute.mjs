@@ -85,6 +85,20 @@ export function itemWithPdf(buffer, propertyName = 'data') {
 	return { json: {}, binary: { [propertyName]: { buffer } } };
 }
 
+/**
+ * Wraps several buffers as ONE n8n item with multiple named binary
+ * properties — needed by ops that consume two binaries on the same item
+ * (Stamp > Image Watermark's base PDF + watermark image, Stamp > Overlay
+ * PDF's base + overlay PDF).
+ */
+export function itemWithBinaries(buffersByPropertyName) {
+	const binary = {};
+	for (const [propertyName, buffer] of Object.entries(buffersByPropertyName)) {
+		binary[propertyName] = { buffer };
+	}
+	return { json: {}, binary };
+}
+
 /** Decodes an output item's binary property back into a real Buffer. */
 export function decodeOutputPdfBuffer(outputItem, propertyName = 'data') {
 	const b64 = outputItem.binary?.[propertyName]?.data;

@@ -3,6 +3,7 @@
  * the dist build inlines — see `spike/harness.mjs`, which this generalizes).
  */
 import { createRequire } from 'node:module';
+import { deflateSync } from 'node:zlib';
 
 const require = createRequire(import.meta.url);
 const { PDFDocument } = require('pdf-lib');
@@ -36,4 +37,59 @@ export async function makeDistinguishablePdf(pageCount) {
 /** Reads back the 1-indexed original page number from a page's width. */
 export function pageNumberFromWidth(width) {
 	return Math.round((width - 100) / 10);
+}
+
+/**
+ * A tiny (1x1, red) PNG, built by hand (no image-encoding library available):
+ * a minimal valid PNG stream (signature + IHDR + IDAT + IEND chunks), each
+ * with a real CRC32 so pdf-lib's PNG decoder (which validates chunk CRCs)
+ * accepts it. Good enough for Stamp > Image Watermark tests, which only need
+ * `pdf.embedPng()` to succeed and the image to be drawn — not any particular
+ * visual content.
+ */
+export function makeTinyPng() {
+	const crcTable = new Uint32Array(256);
+	for (let n = 0; n < 256; n++) {
+		let c = n;
+		for (let k = 0; k < 8; k++) {
+			c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+		}
+		crcTable[n] = c;
+	}
+	function crc32(buf) {
+		let crc = 0xffffffff;
+		for (const byte of buf) {
+			crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+		}
+		return (crc ^ 0xffffffff) >>> 0;
+	}
+
+	function chunk(type, data) {
+		const typeBuf = Buffer.from(type, 'ascii');
+		const lengthBuf = Buffer.alloc(4);
+		lengthBuf.writeUInt32BE(data.length, 0);
+		const crcBuf = Buffer.alloc(4);
+		crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
+		return Buffer.concat([lengthBuf, typeBuf, data, crcBuf]);
+	}
+
+	const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+	const ihdrData = Buffer.alloc(13);
+	ihdrData.writeUInt32BE(1, 0); // width
+	ihdrData.writeUInt32BE(1, 4); // height
+	ihdrData.writeUInt8(8, 8); // bit depth
+	ihdrData.writeUInt8(2, 9); // color type: RGB
+	ihdrData.writeUInt8(0, 10); // compression
+	ihdrData.writeUInt8(0, 11); // filter
+	ihdrData.writeUInt8(0, 12); // interlace
+	const ihdr = chunk('IHDR', ihdrData);
+
+	// One scanline: filter byte (0 = none) + 1 red pixel (R,G,B).
+	const raw = Buffer.from([0, 255, 0, 0]);
+	const idat = chunk('IDAT', deflateSync(raw));
+
+	const iend = chunk('IEND', Buffer.alloc(0));
+
+	return Buffer.concat([signature, ihdr, idat, iend]);
 }

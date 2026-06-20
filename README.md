@@ -132,24 +132,26 @@ with workflows generally.
 
 ## Status: partial implementation
 
-**The entire Document resource (Merge, Split, Extract Pages, Rotate,
-Reorder, Delete Pages) and Extract → Page Count are implemented for real**,
-backed by `pdf-lib`, and covered by tests in `tests/` (run with `npm run
-build && node tests/run-all.mjs`). Every other operation body (Generate,
-Form, Stamp, the rest of Extract, Secure) is still a stub: each one throws a
-`NodeOperationError` naming the operation (e.g. `The "Fill Form" operation is
-not implemented yet`) instead of doing real PDF work. The node UI (resources,
-operations, parameters) and `execute()` routing are complete and stable for
-all six resources; the remaining PDF logic is withheld pending the
-library-bundling decision in the PRD's **open question O1** — whether
-zero-external-service "utility" nodes like this one are eligible for n8n's
-community-node verification program.
+**The entire Document resource (Merge, Split, Extract Pages, Rotate, Reorder,
+Delete Pages), the entire Form resource (Read Fields, Fill Form), the entire
+Stamp resource (Text Watermark, Image Watermark, Page Numbers, Overlay PDF),
+and Extract → Page Count are implemented for real**, backed by `pdf-lib`, and
+covered by tests in `tests/` (run with `npm run build && node
+tests/run-all.mjs`). Every other operation body (Generate, the rest of
+Extract, Secure) is still a stub: each one throws a `NodeOperationError`
+naming the operation (e.g. `The "Encrypt" operation is not implemented yet`)
+instead of doing real PDF work. The node UI (resources, operations,
+parameters) and `execute()` routing are complete and stable for all six
+resources; the remaining PDF logic is withheld pending the library-bundling
+decision in the PRD's **open question O1** — whether zero-external-service
+"utility" nodes like this one are eligible for n8n's community-node
+verification program.
 
 Each remaining stub file under `nodes/PdfToolkit/resources/**` carries a
 `TODO` comment naming the library that operation will use once O1 is
 resolved:
 
-- **Form**, **Stamp**, **Secure** → `pdf-lib`
+- **Secure** → `pdf-lib`
 - **Generate** → `pdfmake`
 - **Extract** (Text, Metadata, Embedded Images) → `pdfjs-dist`
 

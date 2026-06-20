@@ -8,14 +8,40 @@ import { NodeOperationError } from 'n8n-workflow';
 // actually protects is the compiled dist file, which IS scanner-checked (via
 // spike/drive-analyze.mjs) and does not contain an unbundled `pdf-lib`
 // import. Centralizing the import here (instead of repeating it in every
-// resources/document/*.ts file) means only this one line needs the
-// suppression — every op file below imports `PDFDocument`/`degrees` FROM
-// this module (a relative import, always allowed) instead of importing
-// pdf-lib directly.
+// resources/**/*.ts file) means only this one ImportDeclaration needs the
+// suppression (ESLint reports on the `import` keyword's line, which is the
+// line right after this comment, regardless of how many named specifiers the
+// statement has) — every op file below imports these symbols FROM this
+// module (a relative import, always allowed) instead of importing pdf-lib
+// directly. The field-class exports (PDFCheckBox etc.) are needed as real
+// runtime values (Form > Read Fields / Fill Form use `instanceof` to tell
+// field types apart), not just types.
 // eslint-disable-next-line @n8n/community-nodes/no-restricted-imports
-import { PDFDocument, degrees } from 'pdf-lib';
+import {
+	PDFDocument,
+	degrees,
+	PDFButton,
+	PDFCheckBox,
+	PDFDropdown,
+	PDFField,
+	PDFOptionList,
+	PDFRadioGroup,
+	PDFSignature,
+	PDFTextField,
+} from 'pdf-lib';
 
-export { PDFDocument, degrees };
+export {
+	PDFDocument,
+	degrees,
+	PDFButton,
+	PDFCheckBox,
+	PDFDropdown,
+	PDFField,
+	PDFOptionList,
+	PDFRadioGroup,
+	PDFSignature,
+	PDFTextField,
+};
 
 /**
  * PRD R2 ("handle 100-page/50MB docs... hard input-size guards + clear

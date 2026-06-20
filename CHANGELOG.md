@@ -60,6 +60,38 @@ All notable changes to this project will be documented in this file.
   every violation and exiting non-zero on any. Replaces an ad-hoc,
   previously-uncommitted script used for the same check. Run via
   `npm run spike:analyze`.
+- Form > Read Fields and Form > Fill Form are now implemented for real with
+  `pdf-lib`. Read Fields maps `PDFDocument.getForm().getFields()` to
+  name/type/current-value/options JSON, dispatching on each field's concrete
+  pdf-lib subclass (`PDFCheckBox`/`PDFRadioGroup`/`PDFDropdown`/
+  `PDFOptionList`/`PDFTextField`/`PDFButton`/`PDFSignature`) via `instanceof`.
+  Fill Form sets each named field from the "Field Values" JSON param the same
+  way, with an optional `form.flatten()`; an unknown field name or an invalid
+  dropdown/radio-group/option-list selection throws a `NodeOperationError`
+  naming the specific field, instead of a raw pdf-lib error or (for
+  dropdowns, which pdf-lib itself lets silently become free text) silently
+  accepting a typo.
+- Stamp > Text Watermark, Image Watermark, Page Numbers, and Overlay PDF are
+  now implemented for real with `pdf-lib`. Text/Image Watermark apply to
+  "all" pages or a page-range expression (same convention as Document >
+  Rotate) with configurable position/opacity/rotation/scale via a new shared
+  `nodes/PdfToolkit/shared/stampPosition.ts` (7-anchor box-positioning
+  helper shared by all three text/image stamp ops); Image Watermark sniffs
+  PNG-vs-JPEG by magic-number signature before calling pdf-lib's
+  format-specific `embedPng`/`embedJpg`; Page Numbers substitutes
+  `{page}`/`{pages}` in a format template and applies to every page; Overlay
+  PDF supports "repeat first page" and "matching pages" modes via
+  `PDFDocument.embedPdf()` (pdf-lib's `embedPage`/`embedPages` wrapper) +
+  `page.drawPage()`.
+- `tests/pdf-content.mjs`: since pdf-lib has no text-extraction API, the new
+  Stamp tests assert two honest, structural things instead of rendered text —
+  content-stream byte-length growth per page, and the hex-encoded operand of
+  the expected drawn string inside the page's decoded (un-Flate-compressed)
+  content stream. `tests/fixtures.mjs` gained `makeTinyPng` (a hand-built,
+  CRC-valid 1×1 PNG, for Image Watermark tests) and `tests/mock-execute.mjs`
+  gained `itemWithBinaries` (one item, several named binary properties, for
+  ops that consume two binaries — Image Watermark's base PDF + image,
+  Overlay PDF's base + overlay PDF).
 
 ### Fixed
 
