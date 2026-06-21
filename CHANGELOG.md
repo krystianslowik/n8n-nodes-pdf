@@ -116,6 +116,48 @@ All notable changes to this project will be documented in this file.
   separate 1-page PDFs instead of one combined N-page PDF — the same bug
   class already fixed for Document > Merge above.
 
+### Added (Extract > Metadata, Embedded Images)
+
+- Extract > Metadata is now implemented for real with `pdf-lib` (title,
+  author, subject, keywords, creator, producer, creation/modification dates,
+  page count — PRD F8 read half). Loads with `updateMetadata: false`: pdf-lib's
+  default (`true`) unconditionally overwrites `Producer`/`ModificationDate`
+  with its own stamp on every `load()`, which would make a read-only
+  metadata op report pdf-lib's values instead of the document's real ones
+  (see the new `loadPdfDocument()` doc comment in `shared/pdf.ts`). No
+  write/set-metadata variant is scaffolded anywhere in the UI, so only the
+  read half is implemented.
+- Extract > Embedded Images is now implemented for real with pdf-lib's raw
+  PDF object model (no `pdfjs-dist` needed — see below). Walks every page's
+  `/Resources /XObject` dictionary and extracts each `/Subtype /Image`
+  stream's raw bytes, deduplicating images reused across multiple pages.
+  **Only `DCTDecode` (JPEG) images are supported** — a raw XObject stream's
+  bytes ARE a complete, valid image file only for that filter; every other
+  filter (`FlateDecode` — e.g. pdf-lib's own `embedPng` output, raw pixel
+  samples, not a PNG file; `CCITTFaxDecode`; `JPXDecode`) would require real
+  image-codec decode/re-encode work this operation does not do, and now
+  throws a clear `NodeOperationError` naming the unsupported filter instead
+  of silently emitting corrupt output. Documented in the op's UI description
+  and the README.
+- `tests/fixtures.mjs` gained `makeTinyJpg()` (a committed, base64-inlined 4x4
+  baseline JPEG — unlike the hand-built PNG helper, a byte-correct JPEG needs
+  a real DCT/Huffman encoder, out of scope to write from scratch), returning
+  a `Buffer` with `byteOffset === 0` specifically to sidestep a pdf-lib
+  `embedJpg()` bug where `new DataView(buf.buffer)` ignores a pooled Node
+  `Buffer`'s `byteOffset` and misreads the JPEG header.
+- `spike/FINDINGS.md` gained a new "Q4 — pdfjs-dist bundling" section: a
+  genuine bundling attempt for Extract > Text found pdfjs-dist's Node
+  support model (worker/message-passing architecture requiring either a
+  runtime dynamic `import()` of a file on disk, or reimplementing its
+  internal, undocumented wire protocol; a `process`-global dependency for
+  environment detection with no legitimate, non-obfuscating way to satisfy
+  under `no-restricted-globals`/`no-restricted-imports`; a much larger
+  banned-global surface than pdf-lib's single `setTimeout` call, mostly from
+  unrelated bundled web-viewer UI code) architecturally incompatible with
+  this package's constraints. Extract > Text remains a stub (unchanged) —
+  see that section for the full analysis and the two follow-up directions
+  it did not have time to pursue.
+
 ## 0.1.0 - 2026-07-06
 
 ### Added

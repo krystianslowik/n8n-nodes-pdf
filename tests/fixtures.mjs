@@ -93,3 +93,35 @@ export function makeTinyPng() {
 
 	return Buffer.concat([signature, ihdr, idat, iend]);
 }
+
+// A committed tiny (4x4) baseline JPEG fixture, per this group's task scope
+// ("committed tiny fixtures where generation can't produce the needed
+// feature"): unlike PNG (simple DEFLATE + CRC32, hand-built above), a
+// byte-correct baseline JPEG needs a real DCT + Huffman encoder, which is
+// out of scope to write from scratch here. Generated once with macOS's
+// built-in `sips` (`sips -s format jpeg tiny.png --out tiny.jpg`, where
+// `tiny.png` was the hand-built PNG above), then base64-inlined so this
+// fixture is deterministic and has no build-time/runtime dependency on
+// `sips` or any other external tool. Used by
+// `tests/ops/embeddedImages.test.mjs` (DCTDecode is the one image filter
+// this operation supports — see that op's module doc comment).
+const TINY_JPG_BASE64 =
+	'/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAABKADAAQAAAABAAAABAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgABAAEAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A+L6KKK/lM/38P//Z';
+
+/**
+ * A small (4x4) baseline JPEG, decoded fresh from `TINY_JPG_BASE64` each
+ * call. `Buffer.from(base64String, 'base64')` allocates from Node's shared
+ * buffer pool for small sizes like this one — the returned `Buffer`'s
+ * `byteOffset` into its underlying `ArrayBuffer` is NONZERO (verified
+ * empirically). That matters here because pdf-lib's `embedJpg()` does `new
+ * DataView(jpgBytes.buffer)`, which reads from byte 0 of the underlying
+ * `ArrayBuffer` and completely ignores `byteOffset` — silently misreading a
+ * pooled buffer's JPEG header and throwing "SOI not found in JPEG" (also
+ * verified empirically). `ArrayBuffer.prototype.slice()` always copies into
+ * a brand-new, standalone `ArrayBuffer` starting at 0, which is what
+ * sidesteps that bug.
+ */
+export function makeTinyJpg() {
+	const pooled = Buffer.from(TINY_JPG_BASE64, 'base64');
+	return Buffer.from(pooled.buffer.slice(pooled.byteOffset, pooled.byteOffset + pooled.length));
+}

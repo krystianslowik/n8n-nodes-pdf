@@ -30,7 +30,8 @@ const extractOperations: INodeProperties = {
 		{
 			name: 'Embedded Images',
 			value: 'embeddedImages',
-			description: 'Extract images embedded in the PDF',
+			description:
+				'Extract images embedded in the PDF (JPEG/DCTDecode images only — other image filters are not supported, see README)',
 			action: 'Extract embedded images from a PDF',
 		},
 		{

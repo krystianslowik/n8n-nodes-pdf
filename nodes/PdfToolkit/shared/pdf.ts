@@ -20,26 +20,40 @@ import { NodeOperationError } from 'n8n-workflow';
 import {
 	PDFDocument,
 	degrees,
+	PDFArray,
 	PDFButton,
 	PDFCheckBox,
+	PDFDict,
 	PDFDropdown,
 	PDFField,
+	PDFName,
+	PDFNumber,
+	PDFObject,
 	PDFOptionList,
 	PDFRadioGroup,
+	PDFRawStream,
 	PDFSignature,
+	PDFStream,
 	PDFTextField,
 } from 'pdf-lib';
 
 export {
 	PDFDocument,
 	degrees,
+	PDFArray,
 	PDFButton,
 	PDFCheckBox,
+	PDFDict,
 	PDFDropdown,
 	PDFField,
+	PDFName,
+	PDFNumber,
+	PDFObject,
 	PDFOptionList,
 	PDFRadioGroup,
+	PDFRawStream,
 	PDFSignature,
+	PDFStream,
 	PDFTextField,
 };
 
@@ -82,16 +96,32 @@ export function assertBinarySizeWithinLimit(
  * the failing binary property and item (PRD UX principle: "Errors name the
  * failing page/field, not library stack traces") instead of letting a raw
  * pdf-lib parse error/stack trace surface to the user.
+ *
+ * `loadOptions` defaults to pdf-lib's own defaults (in particular
+ * `updateMetadata: true`), matching every existing caller's behavior. Pass
+ * `{ updateMetadata: false }` for READ-ONLY operations over a document's
+ * existing metadata (e.g. Extract > Metadata): pdf-lib's default
+ * `updateMetadata: true` unconditionally overwrites the loaded document's
+ * in-memory `Producer` (to "pdf-lib (https://github.com/Hopding/pdf-lib)")
+ * and `ModificationDate` (to "now") on EVERY `PDFDocument.load()` call,
+ * regardless of what those fields actually say in the source file —
+ * verified empirically (load a PDF with `Producer` set to something else,
+ * `getProducer()` still comes back overwritten). That's a reasonable
+ * default for operations that re-`save()` a modified document (stamping
+ * fresh Producer/ModDate metadata on genuinely new output is normal PDF-tool
+ * behavior), but would make Extract > Metadata report pdf-lib's own stamp
+ * instead of the document's real, on-disk values.
  */
 export async function loadPdfDocument(
 	buffer: Buffer,
 	node: INode,
 	binaryPropertyName: string,
 	itemIndex?: number,
+	loadOptions?: { updateMetadata?: boolean },
 ) {
 	assertBinarySizeWithinLimit(buffer, node, binaryPropertyName, itemIndex);
 	try {
-		return await PDFDocument.load(buffer);
+		return await PDFDocument.load(buffer, loadOptions);
 	} catch (error) {
 		throw new NodeOperationError(
 			node,

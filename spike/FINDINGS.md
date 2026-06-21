@@ -513,6 +513,211 @@ real.
 
 ---
 
+## Q4 — pdfjs-dist bundling (implementation Group 3, Extract > Text)
+
+**Answer: No — a genuine bundling attempt found pdfjs-dist's Node.js support
+model architecturally incompatible with this package's combined constraints
+(scanner-clean static analysis, no filesystem access at runtime, no
+unbundled dynamic `import()`), for reasons well beyond the single, isolated
+`setTimeout` violation pdf-lib had (Q2). Extract > Text remains a stub.**
+
+This section documents that attempt so a future pass doesn't have to
+re-derive the same findings from scratch.
+
+### What was tried
+
+Investigated `pdfjs-dist` versions 4.0.379 (Node `>=18`, matching this
+package's esbuild `target: 'node18'`) and 6.1.200 (current at spike time) —
+both share the same architecture described below. Two builds ship per
+version: `build/pdf.mjs` (the "generic"/modern build — display API + full
+web-viewer layer, e.g. annotation editors) and `legacy/build/pdf.mjs` (ES5 +
+core-js polyfills for old browsers). The **legacy** build was ruled out
+immediately: it textually contains **77** occurrences of the bare identifier
+`global` (core-js polyfill internals) versus 0 in the modern build — Node 18+
+needs none of that ES5 polyfilling, and 77 separate `global` references is a
+different order of problem than the modern build's smaller (but still real,
+see below) violation surface. All further investigation used `build/pdf.mjs`.
+
+### Finding 1 — the banned-globals surface is far larger than pdf-lib's, and includes code we can't disable
+
+Grepping `build/pdf.mjs` (pdfjs-dist 4.0.379) for every identifier
+`@n8n/community-nodes/no-restricted-globals` bans (see Q2's Round 2 for the
+full 11-item list, read directly from the rule source):
+
+```
+clearInterval: 0    global: 0        setInterval: 0     __dirname: 0
+clearTimeout: 16    globalThis: 16   setTimeout: 13      __filename: 0
+process: 7          setImmediate: 0  clearImmediate: 0
+```
+
+pdf-lib's entire violation was **one** `setTimeout` call site, in a helper
+(`waitForTick()`) whose PURPOSE (yield the event loop) could be legitimately
+served by a different primitive (`queueMicrotask`) under the same identifier
+name — a real behavioral substitute, not evasion (Q2 Round 2). pdfjs-dist's
+13 `setTimeout`/16 `clearTimeout` call sites are mostly **web-viewer UI
+code** bundled into the same file as the core parser — debounced resize
+handlers, annotation-editor focus/tooltip timers, DOM context-menu
+dismissal (`this.#canvasContextMenuTimeoutId = setTimeout(...)`, `this.
+#editorFocusTimeoutId = setTimeout(...)`, etc.). This code is dead weight
+for a headless, no-canvas, text-only extraction use case, but esbuild
+`bundle: true` on an ALREADY webpack-bundled, single-scope monolithic module
+(pdfjs-dist ships its own webpack output, not tree-shakeable source) cannot
+eliminate it — dead-code elimination needs fine-grained module boundaries
+that no longer exist post-webpack. So all 13/16 sites would ship regardless
+of which pdfjs-dist API we call. A `clearTimeout`+`setTimeout` shim pair
+analogous to `scripts/shims/yield.js` is *mechanically* possible (verified:
+esbuild's `inject` does not rewrite references inside the injected shim file
+itself — confirmed with a standalone repro), but `clearTimeout`'s only honest
+implementation under a `queueMicrotask`-based `setTimeout` is a no-op (no
+cancellable token), which silently breaks debounce semantics for whatever of
+that 13/16 call sites turns out to be reachable at runtime — untested,
+because of Finding 2 below, which stops the investigation before any of this
+UI-code violation surface even needs resolving.
+
+### Finding 2 — `process` is used for genuine Node-environment detection, not a substitutable behavior, and can't legally be obtained
+
+pdfjs-dist's own Node-vs-browser detection (`isNodeJS`, in `shared/util.js`,
+inlined into the bundle) is:
+
+```js
+const isNodeJS = typeof process === "object" && process + "" === "[object process]" &&
+  !process.versions.nw && !(process.versions.electron && process.type && process.type !== "browser");
+```
+
+Unlike `setTimeout`, this isn't a case where a different value under the
+same name serves the same purpose — pdfjs-dist uses `isNodeJS` to pick
+Node-specific `CMapReaderFactory`/`StandardFontDataFactory`/`CanvasFactory`
+implementations, and text extraction needs the REAL answer (`true`, since we
+always run in Node) to avoid falling into the browser-only `fetch()`-based
+factories. Two ways to legitimately obtain the real Node `process` were
+investigated and both are blocked:
+
+1. **Reference the global `process` identifier directly** — this is
+   exactly what `no-restricted-globals` bans (confirmed against the rule's
+   actual source, `packages/@n8n/eslint-plugin-community-nodes/src/rules/
+   no-restricted-globals.ts`: `process` is literally in the
+   `restrictedGlobals` array, and the rule's one carve-out — skipping
+   `MemberExpression` PROPERTY position, e.g. `obj.process` — does not apply
+   to `process.versions`, where `process` is the object, not the property).
+2. **`require('node:process')` / `require('process')`** (Node's real
+   builtin module for the same object, importable without touching the
+   *global*) — blocked by the OTHER rule, `no-restricted-imports`: its
+   `allowedModules` allowlist (`n8n-workflow`, `ai-node-sdk`, `lodash`,
+   `moment`, `p-limit`, `luxon`, `zod`, `crypto`, `node:crypto`,
+   `@n8n/ai-node-sdk` — read directly from the rule source) special-cases
+   `crypto`/`node:crypto` specifically, but has no general "Node builtins are
+   fine" carve-out, and `process`/`node:process` isn't on it.
+
+A third option — faking a `process`-shaped object under an `inject` shim
+(mirroring the `setTimeout` -> `queueMicrotask` precedent) — was prototyped
+and rejected. Empirically verified with a minimal esbuild repro
+(`inject: ['shim.js']`, `shim.js` exporting `process`): esbuild's bundler
+places the injected declaration in the SAME top-level scope as every
+unresolved reference it redirects, in a single-file cjs bundle — so a shim
+that tries to read the REAL global `process` from inside its own top-level
+code (e.g. `var process = (function(){ return process; })()`) shadows
+itself via `var` hoisting and resolves to `undefined`, not the real global,
+before any of its own code runs:
+
+```
+$ node out.js
+TypeError: Cannot read properties of undefined (reading 'platform')
+```
+
+The only way found to make such a shim "work" (return the REAL global
+object) is `new Function('return process')()` — a `Function` constructor
+body is evaluated in the realm's global scope, not the enclosing module
+scope, so it bypasses the local shadow. This was deliberately NOT adopted:
+unlike `queueMicrotask` replacing `setTimeout` (a genuine, documented
+behavioral substitute), `Function('return process')()` exists FOR NO OTHER
+REASON than to retrieve the exact same banned global while remaining
+invisible to the AST-based scope check — that is real, indefensible textual
+obfuscation of the kind Q2's Round 2 explicitly rejected for `setTimeout`
+("a real change to what the identifier binds to at runtime, not string
+obfuscation"), and a human reviewer (per Q2's Verdict, ~30% one-shot approval
+rate, code IS read) finding `new Function(...)` used specifically to smuggle
+a banned global past static analysis would be a far worse finding than an
+honestly-deferred stub. **This is the line where the attempt stopped being
+"find a legitimate bundling technique" and started being "defeat the
+verification check" — so it stopped.**
+
+### Finding 3 (would have been the next blocker even if Findings 1–2 were solved) — the Node "fake worker" path requires either filesystem-relative dynamic `import()`, or reimplementing pdf.js's internal wire protocol
+
+Independent of the globals problem: pdfjs-dist's display API (`getDocument()`)
+always delegates actual PDF parsing to a "worker" via `postMessage`-style
+message passing — even the official Node.js usage pattern is "run the
+worker code in the same process, fake the message channel." Traced the
+exact mechanism (`class PDFWorker` in `build/pdf.mjs`):
+
+- When `isNodeJS` is true, `PDFWorkerUtil.isWorkerDisabled` is set `true` up
+  front, and `GlobalWorkerOptions.workerSrc ||= "./pdf.worker.mjs"` — so
+  `PDFWorker._initialize()` skips spawning a real `Worker` and calls
+  `this._setupFakeWorker()` directly.
+- `_setupFakeWorker()` resolves `PDFWorker._setupFakeWorkerGlobal`, whose
+  implementation is `await import(/* webpackIgnore */ this.workerSrc)` — a
+  **dynamic import of a runtime STRING path** (defaulting to a relative
+  `./pdf.worker.mjs`, i.e. a `node_modules`-relative filesystem load). This
+  directly violates two constraints at once: "no dynamic imports left
+  unbundled" (esbuild cannot statically resolve/inline a computed
+  `import()` target) and "no filesystem access at runtime" (the whole point
+  of the dynamic import is to `require`/`import` a file off disk that this
+  package's `dist/` would need to ship and reference by path).
+- **A workaround exists in principle**: `getDocument()` accepts
+  `GlobalWorkerOptions.workerPort` (or a `port` option), and if a port is
+  supplied, `PDFWorker` skips `_initialize()`/the dynamic import entirely
+  and just wires a `MessageHandler` over the given port
+  (`_initializeFromPort()`). Node's real global `MessageChannel` (a builtin,
+  not one of the 11 banned globals) provides exactly the duplex-port shape
+  needed. **But** the "worker side" of that port must run
+  `WorkerMessageHandler.setup(handler, port)` (exported from the separate
+  `pdf.worker.mjs` bundle — confirmed present and statically importable),
+  and `.setup()` expects an already-constructed `MessageHandler` instance
+  wrapping the port — and `MessageHandler` itself (the class, not just the
+  static `.setup()` on `WorkerMessageHandler`) is **not exported from either
+  public bundle** (confirmed: grepped the full `export { ... }` statement at
+  the end of `build/pdf.mjs` — `MessageHandler` is not in it). The only way
+  around that is reimplementing pdf.js's internal message-handler wire
+  protocol (action dispatch, callback IDs, DATA/ERROR wrapping, streaming
+  support — partially read from `build/pdf.mjs`'s internal `class
+  MessageHandler`, ~150+ lines) as our own class, matching an UNDOCUMENTED,
+  version-coupled internal protocol closely enough for `WorkerMessageHandler
+  .setup()` to interoperate with it. That is a real, fragile, "reimplement
+  pdf.js's own internals and keep it in sync across version bumps" burden —
+  exactly the kind of maintenance liability that should disqualify a
+  bundling approach even before asking whether the scanner would accept it.
+
+### Verdict
+
+Stopping here (after Findings 1–3, before spending remaining budget trying
+to actually build the Finding-3 workaround) because Finding 2 alone is
+already a hard, non-negotiable stop: there is no legitimate (non-obfuscating)
+way found to give pdfjs-dist the real Node-environment signal it needs, and
+faking that signal only papers over Finding 2 while Findings 1 and 3 remain.
+Per this task's explicit instruction ("HONESTY over completion"), Extract >
+Text's stub (`nodes/PdfToolkit/resources/extract/text.ts`) is left in place,
+unchanged, rather than shipping a `pdfjs-dist`-based implementation that
+either (a) fails the scanner for real (globals), (b) requires an
+`eval`/`Function`-constructor-style obfuscation a human reviewer would flag
+as adversarial, or (c) depends on a hand-rolled reimplementation of an
+undocumented internal protocol that would silently break on the next
+pdfjs-dist version bump. Extract > Metadata and Extract > Embedded Images
+(this group's other two Extract ops) turned out **not to need pdfjs-dist at
+all** — both are fully served by `pdf-lib`, which is already bundled and
+scanner-clean (see their implementations and the module doc comments in
+`nodes/PdfToolkit/resources/extract/metadata.ts` and `embeddedImages.ts`).
+If Extract > Text is revisited, the two productive directions this spike did
+NOT get to (time-boxed) are: (1) a much smaller, purpose-built pure-JS PDF
+text-extraction routine written directly against pdf-lib's already-bundled
+raw object model (parse content streams' `Tj`/`TJ` operators + font
+`/ToUnicode` CMaps ourselves, avoiding pdfjs-dist's worker/UI-layer
+architecture entirely — real effort, but scoped to exactly what F5 needs,
+unlike pulling in a whole browser-viewer library), or (2) revisiting once
+pdfjs-dist ships an official synchronous/no-worker Node entry point (tracked
+upstream in the mozilla/pdf.js project; not available as of the versions
+checked here, 4.0.379 and 6.1.200).
+
+---
+
 ## Other notes / process deviations
 
 - **Q2 Round 2 update:** `npm run lint` is green under the FULL, unmodified

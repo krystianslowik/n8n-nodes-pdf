@@ -82,7 +82,7 @@ image. Every other operation in this node is 1 input item → 1 output item.
 |---|---|
 | Text | Extract per-page text, with an option to include coordinates |
 | Metadata | Extract document metadata (title, author, dates, etc.) |
-| Embedded Images | Extract images embedded in the PDF |
+| Embedded Images | Extract images embedded in the PDF (**JPEG/DCTDecode only** — see note below) |
 | Page Count | Get the number of pages in the PDF |
 
 **Note:** Embedded Images is the one operation that deviates from the
@@ -90,6 +90,18 @@ image. Every other operation in this node is 1 input item → 1 output item.
 number of images per PDF, so it instead takes an **Output Binary Property
 Prefix** (default `image`) and writes each extracted image to its own binary
 field (`image0`, `image1`, ...) on the output item.
+
+**Embedded Images filter support (documented boundary):** this operation
+extracts an image XObject's raw stream bytes as-is, without decoding or
+re-encoding any pixel data. That only produces a valid, standalone image
+file for images using the `DCTDecode` (JPEG) filter — the overwhelmingly
+common case for photos/scans embedded in real-world PDFs. Images using other
+filters (`FlateDecode` — e.g. PNGs re-encoded by pdf-lib's own `embedPng`,
+which stores raw decompressed pixel samples, not a PNG file; `CCITTFaxDecode`
+— scanned fax/TIFF-style bilevel images; `JPXDecode` — JPEG2000) would
+require real image-codec decode/re-encode work this operation does not do,
+so it throws a clear `NodeOperationError` naming the unsupported filter
+instead of silently producing corrupt output.
 
 ### Secure
 
@@ -135,17 +147,17 @@ with workflows generally.
 **The entire Document resource (Merge, Split, Extract Pages, Rotate, Reorder,
 Delete Pages), the entire Form resource (Read Fields, Fill Form), the entire
 Stamp resource (Text Watermark, Image Watermark, Page Numbers, Overlay PDF),
-and Extract → Page Count are implemented for real**, backed by `pdf-lib`, and
-covered by tests in `tests/` (run with `npm run build && node
-tests/run-all.mjs`). Every other operation body (Generate, the rest of
-Extract, Secure) is still a stub: each one throws a `NodeOperationError`
-naming the operation (e.g. `The "Encrypt" operation is not implemented yet`)
-instead of doing real PDF work. The node UI (resources, operations,
-parameters) and `execute()` routing are complete and stable for all six
-resources; the remaining PDF logic is withheld pending the library-bundling
-decision in the PRD's **open question O1** — whether zero-external-service
-"utility" nodes like this one are eligible for n8n's community-node
-verification program.
+and Extract → Metadata, Embedded Images (JPEG only — see above), and Page
+Count are implemented for real**, backed by `pdf-lib`, and covered by tests
+in `tests/` (run with `npm run build && node tests/run-all.mjs`). Every other
+operation body (Generate, Extract → Text, Secure) is still a stub: each one
+throws a `NodeOperationError` naming the operation (e.g. `The "Encrypt"
+operation is not implemented yet`) instead of doing real PDF work. The node
+UI (resources, operations, parameters) and `execute()` routing are complete
+and stable for all six resources; the remaining PDF logic is withheld
+pending the library-bundling decision in the PRD's **open question O1** —
+whether zero-external-service "utility" nodes like this one are eligible for
+n8n's community-node verification program.
 
 Each remaining stub file under `nodes/PdfToolkit/resources/**` carries a
 `TODO` comment naming the library that operation will use once O1 is
@@ -153,7 +165,11 @@ resolved:
 
 - **Secure** → `pdf-lib`
 - **Generate** → `pdfmake`
-- **Extract** (Text, Metadata, Embedded Images) → `pdfjs-dist`
+- **Extract → Text** → intended to be `pdfjs-dist`, but a genuine bundling
+  attempt found it architecturally incompatible with this package's
+  no-filesystem/no-unbundled-dynamic-import/scanner-clean constraints — see
+  `spike/FINDINGS.md`'s "Q4 — pdfjs-dist bundling" section for the full
+  analysis. The stub remains until a viable engine is found.
 
 **Note on n8n Cloud verification eligibility:** `pdf-lib` is bundled into
 `dist/` at build time (esbuild), so the published package declares zero
