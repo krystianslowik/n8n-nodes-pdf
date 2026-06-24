@@ -143,3 +143,44 @@ export async function savePdfAsBinary(
 	const bytes = await pdf.save();
 	return executeFunctions.helpers.prepareBinaryData(Buffer.from(bytes), fileName, mimeType);
 }
+
+/**
+ * pdf-lib's `embedPng`/`embedJpg` are format-specific (no generic
+ * "embedImage" that sniffs the format); the PNG signature is the 8-byte
+ * magic number `89 50 4E 47 0D 0A 1A 0A`, everything else is treated as JPEG
+ * (matches what n8n's binary-data JPEG/PNG mime types cover — PRD F6/F7
+ * "PNG/JPG binary input"). Shared by Stamp > Image Watermark, Generate >
+ * From Images, and Generate > From Template/From Markdown's image blocks so
+ * this sniffing logic isn't duplicated across every caller.
+ */
+export function looksLikePng(buffer: Buffer): boolean {
+	const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+	if (buffer.length < pngSignature.length) return false;
+	return pngSignature.every((byte, index) => buffer[index] === byte);
+}
+
+/**
+ * Embeds a PNG/JPEG image buffer into `pdf`, sniffing the format via
+ * {@link looksLikePng}, and wraps any pdf-lib decode failure in a
+ * `NodeOperationError` naming the failing binary property/item (PRD UX:
+ * "Errors name the failing page/field, not library stack traces").
+ */
+export async function embedImageAuto(
+	pdf: PDFDocument,
+	buffer: Buffer,
+	node: INode,
+	binaryPropertyName: string,
+	itemIndex?: number,
+) {
+	try {
+		return looksLikePng(buffer) ? await pdf.embedPng(buffer) : await pdf.embedJpg(buffer);
+	} catch (error) {
+		throw new NodeOperationError(
+			node,
+			`Could not read binary property "${binaryPropertyName}" as a PNG/JPEG image: ${
+				(error as Error).message
+			}`,
+			itemIndex === undefined ? {} : { itemIndex },
+		);
+	}
+}

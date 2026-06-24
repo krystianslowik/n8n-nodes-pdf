@@ -56,9 +56,21 @@ image. Every other operation in this node is 1 input item → 1 output item.
 
 | Operation | Description |
 |---|---|
-| From Template | Generate a PDF from a declarative JSON template (text/table/image/list blocks) |
-| From Markdown | Generate a PDF from Markdown (headings, lists, tables, code) |
+| From Template | Generate a PDF from a declarative JSON template (heading/paragraph/list/table/code/image blocks, headers/footers, page numbers) |
+| From Markdown | Generate a PDF from Markdown (headings, paragraphs with bold/italic/code spans, bullet/numbered lists, fenced code blocks, GFM pipe tables) |
 | From Images | Combine one image per incoming item (in input order) into a single multi-page PDF — **drop-in `n8n-nodes-pdfkit` replacement** |
+
+**Generate engine note:** all three operations are implemented with a small,
+purpose-built `pdf-lib`-based layout engine
+(`nodes/PdfToolkit/shared/docRenderer.ts`), **not** `pdfmake` (the PRD's
+original engine choice for this resource). A genuine bundling attempt found
+`pdfmake` architecturally incompatible with this package's scanner-clean /
+no-filesystem constraints — see `spike/FINDINGS.md`'s "Q5 — pdfmake
+bundling" for the full analysis. Known v0 boundaries of the fallback
+renderer: only the bundled base fonts (Helvetica/Courier/Times — no
+custom/embedded fonts, so From Template's **Custom Font Binary Property**
+option throws a clear "not yet supported" error rather than silently
+ignoring it), no nested lists, and equal-width table columns.
 
 ### Form
 
@@ -147,24 +159,26 @@ with workflows generally.
 **The entire Document resource (Merge, Split, Extract Pages, Rotate, Reorder,
 Delete Pages), the entire Form resource (Read Fields, Fill Form), the entire
 Stamp resource (Text Watermark, Image Watermark, Page Numbers, Overlay PDF),
+the entire Generate resource (From Template, From Markdown, From Images),
 and Extract → Metadata, Embedded Images (JPEG only — see above), and Page
-Count are implemented for real**, backed by `pdf-lib`, and covered by tests
-in `tests/` (run with `npm run build && node tests/run-all.mjs`). Every other
-operation body (Generate, Extract → Text, Secure) is still a stub: each one
-throws a `NodeOperationError` naming the operation (e.g. `The "Encrypt"
-operation is not implemented yet`) instead of doing real PDF work. The node
-UI (resources, operations, parameters) and `execute()` routing are complete
-and stable for all six resources; the remaining PDF logic is withheld
-pending the library-bundling decision in the PRD's **open question O1** —
-whether zero-external-service "utility" nodes like this one are eligible for
-n8n's community-node verification program.
+Count are implemented for real**, backed by `pdf-lib` (Generate's From
+Template/From Markdown use a small pdf-lib-based layout engine in place of
+`pdfmake` — see the Generate section above), and covered by tests in
+`tests/` (run with `npm run build && node tests/run-all.mjs`). Only Extract
+→ Text and the entire Secure resource (Encrypt, Decrypt, Set Permissions)
+remain stubs: each throws a `NodeOperationError` naming the operation (e.g.
+`The "Encrypt" operation is not implemented yet`) instead of doing real PDF
+work. The node UI (resources, operations, parameters) and `execute()`
+routing are complete and stable for all six resources; the remaining PDF
+logic is withheld pending the library-bundling decision in the PRD's **open
+question O1** — whether zero-external-service "utility" nodes like this one
+are eligible for n8n's community-node verification program.
 
 Each remaining stub file under `nodes/PdfToolkit/resources/**` carries a
 `TODO` comment naming the library that operation will use once O1 is
 resolved:
 
 - **Secure** → `pdf-lib`
-- **Generate** → `pdfmake`
 - **Extract → Text** → intended to be `pdfjs-dist`, but a genuine bundling
   attempt found it architecturally incompatible with this package's
   no-filesystem/no-unbundled-dynamic-import/scanner-clean constraints — see
@@ -186,12 +200,12 @@ bundling shim (`scripts/shims/yield.js`).
 
 If you're coming from `n8n-nodes-pdfkit` (images → PDF only, last published
 2023-05-14), the **Generate → From Images** operation is the drop-in parity
-op: point it at the same image binaries you were feeding into
-`n8n-nodes-pdfkit`, and it produces the same one-image-per-page PDF. Once this
-package's operations are implemented (see [Status: partial implementation](#status-partial-implementation)),
-you'll be able to uninstall `n8n-nodes-pdfkit` entirely — this package also
-covers merge/split/watermark/forms/extraction/encryption, none of which
-`n8n-nodes-pdfkit` ever supported.
+op — implemented for real: point it at the same image binaries you were
+feeding into `n8n-nodes-pdfkit`, and it produces the same one-image-per-page
+PDF. This package also covers merge/split/watermark/forms/extraction (all
+implemented for real, see [Status: partial implementation](#status-partial-implementation)),
+none of which `n8n-nodes-pdfkit` ever supported — only encryption/permissions
+(Secure) and Extract → Text are still pending.
 
 ## Resources
 

@@ -718,6 +718,117 @@ checked here, 4.0.379 and 6.1.200).
 
 ---
 
+## Q5 — pdfmake bundling (implementation Group 4, Generate resource)
+
+**Answer: No — a genuine bundling attempt found `pdfmake` architecturally
+incompatible with this package's constraints, for reasons that go beyond a
+single fixable violation (unlike pdf-lib's one `setTimeout` call, Q2) and
+beyond even pdfjs-dist's already-severe surface (Q4): `pdfmake`'s Node
+rendering path performs REAL filesystem reads at runtime for its standard
+fonts, not just a static-analysis violation. Generate's three operations
+(From Template, From Markdown, From Images) are implemented for real anyway
+— against a documented v0 fallback: a small, purpose-built `pdf-lib`-based
+layout engine (`nodes/PdfToolkit/shared/docRenderer.ts`), per this group's
+task instructions ("a stub is not an acceptable end state for Generate").**
+
+### What was tried
+
+`pdfmake` (`^0.3.11`) has two runtime entry points:
+
+1. **The Node/server path** (`main: "js/index.js"`, what `new
+   PdfPrinter(fonts).createPdfKitDocument(docDefinition)` uses) — this
+   delegates actual PDF writing to `pdfkit` (`dependencies: { pdfkit:
+   "^0.19.1" }`), which in turn depends on `fontkit`, `linebreak`,
+   `png-js`, `js-md5`, `@noble/hashes`, `@noble/ciphers`.
+2. **The browser bundle** (`browser: "build/pdfmake.js"`, paired with
+   `build/vfs_fonts.js` for the embedded-Roboto-font route the PRD's O4
+   answer specifically named) — a webpack/browserify bundle intended to run
+   in a browser tab, with browser-polyfilled `fs`/`zlib`/`Buffer`.
+
+Both were probed by installing `pdfmake` as a temporary devDependency,
+writing a minimal entry file that `require()`s each path, and running it
+through the exact same `esbuild --bundle --platform=node --target=node18
+--format=cjs` invocation `scripts/esbuild-bundle.mjs` uses, then grepping the
+bundled output for every identifier `@n8n/community-nodes/no-restricted-globals`
+bans (the same 11-item list from Q2's Round 2) plus `fs`/browser-only globals.
+
+### Finding 1 — the Node/pdfkit path reads its standard fonts off disk at runtime, a hard "no filesystem access" conflict, not just a lint violation
+
+```
+147777:  return fs.readFileSync(__dirname + "/data/Courier.afm", "utf8");
+147780:  return fs.readFileSync(__dirname + "/data/Courier-Bold.afm", "utf8");
+...(14 AFM font-metric files total)...
+150570:  const iccProfile = fs.readFileSync(`${__dirname}/data/sRGB_IEC61966_2_1.icc`);
+```
+
+`pdfkit`'s standard-14 font support (`Helvetica`, `Courier`, `Times-Roman`,
+etc. — the exact font family this package's `pdf-lib` fallback also uses)
+works by reading AFM (Adobe Font Metrics) text files off disk, relative to
+its own installed package directory (`__dirname`). This is `pdfkit`'s core,
+load-bearing mechanism for its most basic font support, not an edge case
+reachable only via some unusual code path — and it is a **real runtime
+filesystem read**, which conflicts with the PRD's "no filesystem access"
+constraint at a level no bundle-time shim can legitimately paper over (Q2's
+`queueMicrotask` trick works because it substitutes a different, real
+implementation of the SAME behavior — "yield the event loop"; there is no
+substitute that makes `fs.readFileSync(pathToAFonThatWasNeverShipped)`
+return real font-metric data without either (a) shipping the AFM files
+themselves in `dist/` and faking a working filesystem read for them — which
+just relocates the problem, still a real disk read of shipped data files, or
+(b) vendoring pdfkit's own AFM parsing AND all 14 fonts' metric tables as
+in-memory data, which is most of re-implementing pdfkit's font layer from
+scratch). The `no-restricted-globals` violation count on top of this
+(`__dirname`: 17, `process`: 29, `global`: 15 — from `fontkit`/`linebreak`/
+`js-md5`/`@noble/hashes`, none of them one isolated, purpose-identifiable
+call site the way pdf-lib's `waitForTick()` was) would still need solving
+even if the filesystem issue were somehow set aside.
+
+### Finding 2 — the browser bundle path is worse, not better, and isn't actually a Node-compatible artifact
+
+`build/pdfmake.js` (66,050 lines, a webpack bundle meant for a `<script>` tag
+in a browser tab) greps for the same banned-globals list at a much larger
+scale: `process`: 140, `globalThis`: 66, `global`: 47, `setTimeout`: 19,
+`clearTimeout`: 10, `setImmediate`: 2 — plus 217 references to `document` and
+167 to `window`, browser DOM globals this bundle uses for its "open/download
+the generated PDF" convenience helpers and Buffer/zlib browser polyfills.
+Unlike pdf-lib's single legitimately-shimmable `setTimeout` (Q2) or even
+pdfjs-dist's already-large-but-boundable UI-code surface (Q4, Finding 1),
+this is an order of magnitude larger violation surface, in a bundle that was
+never designed to run in Node at all — there is no isolated feature subset
+to carve out.
+
+### Verdict
+
+Both `pdfmake` paths are hard blockers, of a different and more severe kind
+than pdf-lib's (Q2) or even pdfjs-dist's (Q4): Finding 1 is a **real runtime
+filesystem access**, not just a static-analysis lint hit — the PRD's
+"no filesystem access at runtime" constraint is a functional requirement,
+not merely something the scanner happens to check for, and there is no
+legitimate (non-obfuscating) way to satisfy it while still using `pdfkit`'s
+actual standard-font mechanism. Per this group's explicit instruction ("If
+`pdfmake` cannot be bundled scanner-clean after a genuine attempt (~40 min),
+fall back... The op must WORK either way — a stub is not an acceptable end
+state for Generate"), the fallback was implemented instead: `From Template`
+and `From Markdown` are both rendered by
+`nodes/PdfToolkit/shared/docRenderer.ts`, a purpose-built layout engine using
+ONLY `pdf-lib` primitives (`drawText`/`drawLine`/`drawRectangle`/
+`drawImage`, the standard-14 fonts, and pdf-lib's own already-scanner-clean
+bundling from Q2) — word-wrapping, pagination, headings, paragraphs
+(with inline bold/italic/code runs), bullet/numbered lists, simple
+equal-width tables, fenced code blocks, images, and header/footer bands with
+`{{page}}`/`{{pages}}` substitution. `From Markdown` (PRD F9) is a
+hand-written line-based parser (`nodes/PdfToolkit/shared/markdown.ts`, no
+`marked`/`markdown-it` dependency, per this group's "keep the dep surface
+minimal" instruction) that maps onto the SAME renderer, so both operations
+share one rendering pipeline. Documented, honest v0 boundaries of this
+fallback (also in the node's own parameter descriptions and README): only
+the bundled base fonts are available (no custom/embedded fonts — PRD F3's
+"custom font via binary input" throws a clear "not yet supported" error
+instead of silently ignoring the option), no nested lists, no cell-spanning
+tables, and equal-width table columns only.
+
+---
+
 ## Other notes / process deviations
 
 - **Q2 Round 2 update:** `npm run lint` is green under the FULL, unmodified
