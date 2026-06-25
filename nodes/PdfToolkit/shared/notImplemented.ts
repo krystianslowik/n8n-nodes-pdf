@@ -35,3 +35,27 @@ export function throwNotImplemented(
 		itemIndex === undefined ? {} : { itemIndex },
 	);
 }
+
+/**
+ * Same contract as {@link throwNotImplemented}, but for stubs where the
+ * blocker isn't "not built yet" — it's a genuine, investigated engineering
+ * boundary (a required engine/library was evaluated and found impossible to
+ * bundle scanner-clean, per the PRD's UX principle "errors name the failing
+ * page/field, not library stack traces": a bare "not implemented yet" is
+ * misleading here because it implies the fix is just "write the code").
+ * `reason` should name the blocking engine and point at the written-up
+ * evaluation (`spike/FINDINGS.md`) so the message is actionable, not just
+ * apologetic.
+ */
+export function throwEngineUnavailable(
+	this: IExecuteFunctions,
+	operationLabel: string,
+	reason: string,
+	itemIndex?: number,
+): never {
+	throw new NodeOperationError(
+		this.getNode(),
+		`The "${operationLabel}" operation is not available: ${reason}`,
+		itemIndex === undefined ? {} : { itemIndex },
+	);
+}

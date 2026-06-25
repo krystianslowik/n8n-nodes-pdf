@@ -1,7 +1,7 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField } from '../../shared/descriptions';
-import { throwNotImplemented } from '../../shared/notImplemented';
+import { throwEngineUnavailable } from '../../shared/notImplemented';
 
 const showOnlyForSetPermissions = { resource: ['secure'], operation: ['setPermissions'] };
 
@@ -37,12 +37,22 @@ export const setPermissionsDescription: INodeProperties[] = [
 	outputOptionsField('secure', 'setPermissions', [], 'restricted.pdf'),
 ];
 
-// TODO: implement with pdf-lib (where supported) or a qpdf-wasm-based
-// fallback for the PDF permission bitmask (PRD §7/O1) once the bundling
-// strategy for PRD open question O1 is resolved.
+// The PDF permissions bitmask lives inside the standard-security-handler
+// encryption dictionary (a permitted-but-unencrypted-content PDF still needs
+// an owner-password-protected encryption dict to carry restriction flags) —
+// pdf-lib cannot write one, same root cause as encrypt.ts/decrypt.ts. See
+// spike/FINDINGS.md "Q6 — qpdf-wasm eval".
 export async function setPermissionsExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
 ): Promise<INodeExecutionData> {
-	return throwNotImplemented.call(this, 'Set Permissions', itemIndex);
+	return throwEngineUnavailable.call(
+		this,
+		'Set Permissions',
+		'setting PDF permissions needs a WASM engine (qpdf), and the evaluated qpdf-wasm builds ' +
+			'cannot yet be bundled scanner-clean for this package (no filesystem/env access at ' +
+			'runtime) — see spike/FINDINGS.md "Q6 — qpdf-wasm eval" for the full evaluation and ' +
+			'viable future paths',
+		itemIndex,
+	);
 }

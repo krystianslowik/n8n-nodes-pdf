@@ -829,6 +829,197 @@ tables, and equal-width table columns only.
 
 ---
 
+## Q6 — qpdf-wasm eval (implementation Group 5, Secure resource)
+
+**Answer: No — a genuine, time-boxed evaluation of the two viable qpdf-wasm
+npm builds found the same class of hard blocker Q4 (pdfjs-dist) and Q5
+(pdfmake) hit: real runtime filesystem/environment access baked into their
+Emscripten Node bootstrap code, entangled with multiple banned globals — not
+one isolated, cleanly-substitutable call site like pdf-lib's `setTimeout`
+(Q2). Encrypt/Decrypt/Set Permissions remain stubs, upgraded to explain WHY
+(see `nodes/PdfToolkit/resources/secure/{encrypt,decrypt,setPermissions}.ts`
+and the new `throwEngineUnavailable` helper in
+`nodes/PdfToolkit/shared/notImplemented.ts`) instead of a bare "not
+implemented yet".**
+
+### What was tried
+
+pdf-lib has no PDF standard-security-handler (encryption) implementation at
+all (confirmed against its own source — there is no encrypt/decrypt/
+permissions code path), so Secure needs a different engine per the PRD's
+own O2 framing ("qpdf-wasm eval"). Installed both npm-published qpdf-wasm
+builds as temporary devDependencies in an isolated `/tmp` sandbox (never
+added to this package's `package.json` — zero footprint on the real repo)
+and inspected their actual shipped JS/WASM, the same way Q4/Q5 did for their
+candidates:
+
+- `@jspawn/qpdf-wasm@0.0.2` — Apache-2.0, ships `qpdf.js` (Emscripten glue,
+  CommonJS) + `qpdf.wasm` (1.2MB). Its own README states plainly: **"This
+  doesn't expose the `qpdf` library — just the CLI."** i.e. the only surface
+  is `Module.callMain(argv)`, an in-process re-implementation of qpdf's
+  command-line argument parser (`--encrypt`, `--decrypt`, `--pages`, etc.),
+  not a programmatic encrypt/decrypt/permissions API.
+- `@neslinesli93/qpdf-wasm@0.3.0` — ISC, ships `dist/qpdf.js` + `dist/qpdf.wasm`
+  (1.3MB), same `callMain(argv)`-only surface (its README's usage examples
+  are all `qpdf.callMain([...])`).
+
+Both are ~1.2-1.4MB total (well inside the PRD's <10MB bundle budget — size
+was never the blocker), so the bundle-size question this eval also had to
+answer is: **not the problem.** The problem is what's *in* the JS glue.
+
+### Finding 1 — the Node bootstrap unconditionally references multiple banned globals, not one isolated call site
+
+Grepping each package's Node-targeting build for every identifier
+`@n8n/community-nodes/no-restricted-globals` bans (Q2 Round 2's 11-item
+list) plus the Node built-in modules `no-restricted-imports` doesn't
+allowlist:
+
+```
+@jspawn/qpdf-wasm/qpdf.js:        process (module-load-time: process.argv,
+                                   process.on("uncaughtException", ...),
+                                   process.on("unhandledRejection", ...)),
+                                   __dirname (path-locate line), require("fs"),
+                                   require("path")
+@neslinesli93/qpdf-wasm/dist/qpdf.js:
+  fs: 25   path: 12   process: 11   __dirname: 1   __filename: 2   setTimeout: 1
+```
+
+Unlike pdf-lib's ONE `setTimeout` call site inside `waitForTick()` — a
+helper whose entire purpose (yield the event loop) has a real, legal
+substitute (`queueMicrotask`, Q2 Round 2) — these references are the
+Emscripten-generated Node-environment bootstrap itself: detecting Node vs.
+browser, resolving the WASM file's path relative to `__dirname`, wiring
+`process.on('uncaughtException'/'unhandledRejection', ...)` handlers, and
+`require()`-ing `fs`/`path` to read the `.wasm` file and any input/output
+files off real disk. This is architecturally the same shape as Q4's
+pdfjs-dist finding (`process`-based `isNodeJS` detection used for a real
+behavioral branch, not a substitutable value) and Q5's pdfmake finding (a
+real runtime filesystem read for shipped binary data, here the `.wasm`
+bytes) — not a single fixable violation.
+
+### Finding 2 — the WASM-loading `fs.readFileSync` step alone has a real, legal escape hatch, but it doesn't reach far enough
+
+One narrower piece of this actually IS legitimately fixable, unlike Q4/Q5's
+blockers: `@jspawn/qpdf-wasm`'s glue code checks `if (d.instantiateWasm) try
+{ return d.instantiateWasm(e, a) } ...` **before** falling through to the
+`fs.readFileSync`-based file loader — `instantiateWasm` is Emscripten's own
+documented public option for supplying an already-fetched
+`WebAssembly.Module`/bytes (e.g. from an inlined base64 buffer compiled into
+the bundle), exactly the kind of "real behavioral substitute, not textual
+obfuscation" Q2 Round 2's `queueMicrotask` shim was. Verified present and
+callable (`typeof require('@jspawn/qpdf-wasm/qpdf.js') === 'function'`, a
+factory accepting an options object). **But** this only removes the
+WASM-bytes file read — it does nothing about Finding 1's `process.on(...)`/
+`__dirname`/`require('fs')`/`require('path')` references, which are
+textually present and execute unconditionally at module load time
+regardless of whether `instantiateWasm` is supplied. Shimming `__dirname`
+the same way `setTimeout` was shimmed (a local declaration with a real
+value, e.g. `''`, since it's never actually read once `instantiateWasm`
+bypasses the file-locate step) is plausible in isolation, but `process` is
+harder: `process.on('uncaughtException', ...)` needs a *callable* stand-in
+(not just a value), and unlike pdfjs-dist's `isNodeJS` check (Q4 Finding 2,
+correctly rejected), a stub `process` object here would be a genuine
+behavioral substitute (we don't need real uncaught-exception interception
+for a library call) — so this specific piece is NOT the same "indefensible
+obfuscation" Q4 rejected. The `require('fs')`/`require('path')` calls are
+the harder remaining blocker: they sit inside functions (`ma()`/`ja()`/
+`ka()`) that would never be CALLED once `instantiateWasm` is supplied, but
+`no-restricted-imports` is a pure AST match on the `require(...)` call
+expression itself — Q4/Q5 already established this fires "regardless of
+whether that code path executes." The only way to remove them from the
+*shipped* bundle is deleting those dead functions from the vendored glue
+file before bundling — patching a third-party build artifact, not writing a
+behavioral-equivalent shim. That crosses into the same territory Q4's
+Finding 3 flagged as a disqualifying maintenance burden (forking and
+hand-maintaining a vendored copy of generated glue code that would silently
+drift on the next qpdf-wasm version bump), and Q2's Verdict flagged as
+exactly what a human reviewer's "is this obfuscated/hand-modified
+third-party code?" check exists to catch — for an entire patched Emscripten
+output file, not two narrow `eslint-disable-next-line` source lines.
+
+### Finding 3 — even a scanner-clean build would only expose qpdf's CLI, not an encrypt/decrypt/permissions API
+
+Independent of Findings 1-2: both packages' only entry point is
+`callMain(argv)` — an in-process re-implementation of qpdf's command-line
+argument parser. Implementing Encrypt/Decrypt/Set Permissions against this
+means constructing argv arrays like `['--encrypt', userPassword,
+ownerPassword, '256', '--', '/in.pdf', '/out.pdf']`, writing input to the
+module's virtual `MEMFS` (`qpdf.FS.writeFile`), calling `callMain`, and
+reading back `qpdf.FS.readFile` — workable in principle (MEMFS is genuinely
+in-memory, not a real disk, so this part doesn't reintroduce the filesystem
+problem), but it means depending on qpdf's CLI flag surface and exit-code/
+stderr conventions as an undocumented-for-embedding integration contract
+that can shift across qpdf version bumps — a smaller, secondary version of
+the same "reimplement/track an internal, undocumented protocol" risk Q4's
+Finding 3 flagged for pdfjs-dist's worker wire format.
+
+### Verdict
+
+Stopping the evaluation here (Findings 1-3, ~25 minutes of the ~40-minute
+budget) because Finding 1 alone already puts this in the same category as
+Q4/Q5's rejections: multiple banned globals and banned built-in `require()`s
+entangled through the library's own Node bootstrap, not a single
+substitutable call site. Per this group's explicit instruction ("If NO: keep
+the 3 stubs but upgrade their error messages to explain WHY... an honest
+documented boundary beats a fake"), Encrypt/Decrypt/Set Permissions stay
+stubs. Their error messages now name the blocking engine (qpdf) and point
+here instead of saying only "not implemented yet" (`throwEngineUnavailable`,
+`nodes/PdfToolkit/shared/notImplemented.ts`), and `tests/ops/secure.test.mjs`
+asserts on that upgraded message content.
+
+**Viable future paths, in rough order of promise:**
+
+1. **Companion package (PRD O3 pattern)** — the same reasoning that keeps
+   HTML→PDF (Tier 2) out of the core package applies here: a separate
+   `n8n-nodes-pdf-secure`-style companion, published unverified/self-hosted-
+   first, could bundle a patched/vendored qpdf-wasm without risking THIS
+   package's Cloud-verification eligibility. Lowest engineering risk, but
+   moves Encrypt/Decrypt/Set Permissions out of the core node entirely
+   (product-scope decision, not this group's call).
+2. **From-source Emscripten rebuild with `-s SINGLE_FILE=1` and a stubbed
+   Node target.** Emscripten supports inlining the `.wasm` as a base64
+   string directly in the `.js` output (no separate file, no `fs`
+   read for the WASM bytes at all) and a build-time flag surface that could
+   in principle drop the CLI-only `process.argv`/`uncaughtException`
+   wiring if built against a custom `main()` shim instead of qpdf's real
+   `qpdf.cc` CLI entry point. Not attempted here — compiling qpdf's full C++
+   source (plus its own dependencies: zlib, jpeg, and qpdf's own crypto
+   backend) via Emscripten from scratch is a multi-hour-plus undertaking
+   clearly outside this group's ~40-minute time-box, and would need its own
+   dedicated spike.
+3. **A from-scratch, purpose-built pure-JS PDF standard-security-handler
+   implementation** (RC4/AES-128/AES-256 per the PDF spec's §7.6, using
+   Node's `crypto`/`node:crypto` — already allowlisted by
+   `no-restricted-imports`) **against pdf-lib's own bundled cryptographic
+   primitives and raw object model**, writing the encryption dictionary and
+   per-object key derivation ourselves instead of depending on qpdf at all.
+   This is real, scoped effort (the PDF encryption spec section is well-
+   documented, unlike pdfjs-dist's undocumented internal wire protocol from
+   Q4 Finding 3) but was out of scope for a "can an existing WASM build be
+   bundled" time-boxed eval — flagged as the most promising *scanner-clean-
+   by-construction* direction if Secure encryption support is prioritized
+   for a future release, since it would use only already-bundled/allowlisted
+   primitives (pdf-lib + `node:crypto`) instead of a new WASM engine.
+
+### A related scaffold/PRD reconciliation note (not a Q6 finding, but discovered while working this group)
+
+The PRD's §5 operations table assigns "read/strip metadata" to the **Secure**
+resource row (`pdf-lib + qpdf-wasm eval (O2)`), but the scaffolded Secure
+resource's UI only has three operations — Encrypt, Decrypt, Set Permissions
+(`nodes/PdfToolkit/resources/secure/index.ts`) — there is no "Strip
+Metadata" parameter/operation anywhere in the Secure resource to implement
+against. Metadata *reading* already lives under **Extract > Metadata**
+(implemented for real, Group 3/Q4 area) and there is no metadata-*stripping*
+operation scaffolded anywhere in the six resources. This is a genuine PRD/
+scaffold mismatch, not something this group could resolve by picking an
+implementation (there's no UI surface to wire a body into) — flagged here
+for the readiness pass to reconcile in the README/PRD (either scaffold a
+real "Strip Metadata" operation under Secure in a future group, or update
+the PRD table to point Extract > Metadata at the read half and drop the
+"strip" half, or fold "strip metadata" into a future Secure UI addition).
+
+---
+
 ## Other notes / process deviations
 
 - **Q2 Round 2 update:** `npm run lint` is green under the FULL, unmodified

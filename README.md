@@ -117,11 +117,38 @@ instead of silently producing corrupt output.
 
 ### Secure
 
-| Operation | Description |
-|---|---|
-| Encrypt | Password-protect a PDF |
-| Decrypt | Remove password protection from a PDF |
-| Set Permissions | Restrict printing, copying, editing, and other actions |
+| Operation | Description | Status |
+|---|---|---|
+| Encrypt | Password-protect a PDF | Stub (see below) |
+| Decrypt | Remove password protection from a PDF | Stub (see below) |
+| Set Permissions | Restrict printing, copying, editing, and other actions | Stub (see below) |
+
+**Why these three are still stubs:** `pdf-lib` has no PDF
+standard-security-handler (encryption) implementation at all — there is
+simply no encrypt/decrypt/permissions code path to call. The PRD's suggested
+alternative, a qpdf-wasm engine (PRD F10/O2), was genuinely evaluated for
+this package and rejected: the two viable npm builds
+(`@jspawn/qpdf-wasm`, `@neslinesli93/qpdf-wasm`) are Emscripten Node bundles
+whose bootstrap code unconditionally references banned globals (`process`,
+`__dirname`) and `require()`s banned built-in modules (`fs`, `path`) —
+entangled throughout their Node-environment detection, not one isolated,
+cleanly-substitutable call site the way pdf-lib's single `setTimeout` call
+was (see `spike/FINDINGS.md`'s "Q2" for that fix). See `spike/FINDINGS.md`'s
+"Q6 — qpdf-wasm eval" for the full evaluation, the one piece that IS
+legitimately fixable (the WASM-bytes file load, via Emscripten's documented
+`instantiateWasm` option), and viable future paths (a companion package per
+PRD O3, a from-source Emscripten rebuild, or a from-scratch pure-JS
+standard-security-handler implementation against pdf-lib + `node:crypto`).
+Calling any of these three operations throws a `NodeOperationError` naming
+the operation and this reason (not a raw library stack trace, and not just
+"not implemented yet").
+
+**PRD/scaffold note:** the PRD's operations table also lists "read/strip
+metadata" under Secure. The scaffolded Secure UI has no such
+parameter/operation to implement against — metadata *reading* lives under
+**Extract → Metadata** (implemented for real) and there is no
+metadata-*stripping* operation anywhere in this package yet. See
+`spike/FINDINGS.md` "Q6" for this reconciliation note.
 
 **Roadmap note (Tier 1 vs. Tier 2):** everything above is **Tier 1** — pure-JS,
 verification-safe operations that ship in the core package. **Tier 2**
@@ -166,24 +193,28 @@ Template/From Markdown use a small pdf-lib-based layout engine in place of
 `pdfmake` — see the Generate section above), and covered by tests in
 `tests/` (run with `npm run build && node tests/run-all.mjs`). Only Extract
 → Text and the entire Secure resource (Encrypt, Decrypt, Set Permissions)
-remain stubs: each throws a `NodeOperationError` naming the operation (e.g.
-`The "Encrypt" operation is not implemented yet`) instead of doing real PDF
-work. The node UI (resources, operations, parameters) and `execute()`
-routing are complete and stable for all six resources; the remaining PDF
-logic is withheld pending the library-bundling decision in the PRD's **open
-question O1** — whether zero-external-service "utility" nodes like this one
-are eligible for n8n's community-node verification program.
+remain stubs: each throws a `NodeOperationError` naming the operation and
+the reason it's unavailable (not a raw library stack trace, and not just
+"not implemented yet") instead of doing real PDF work. The node UI
+(resources, operations, parameters) and `execute()` routing are complete and
+stable for all six resources.
 
-Each remaining stub file under `nodes/PdfToolkit/resources/**` carries a
-`TODO` comment naming the library that operation will use once O1 is
-resolved:
+Unlike the rest of this package, these two remaining stubs are **not**
+withheld pending PRD open question O1 (the bundling-eligibility question
+that gated everything before Group 1's spike) — that question is resolved
+for every library this package actually uses. They're withheld because a
+genuine bundling attempt for their required engine hit a hard architectural
+wall, documented in `spike/FINDINGS.md`:
 
-- **Secure** → `pdf-lib`
+- **Secure (Encrypt, Decrypt, Set Permissions)** → needs a WASM engine
+  (qpdf, since `pdf-lib` has no encryption support at all); the evaluated
+  qpdf-wasm builds can't yet be bundled scanner-clean for this package — see
+  "Q6 — qpdf-wasm eval".
 - **Extract → Text** → intended to be `pdfjs-dist`, but a genuine bundling
   attempt found it architecturally incompatible with this package's
   no-filesystem/no-unbundled-dynamic-import/scanner-clean constraints — see
-  `spike/FINDINGS.md`'s "Q4 — pdfjs-dist bundling" section for the full
-  analysis. The stub remains until a viable engine is found.
+  "Q4 — pdfjs-dist bundling". The stub remains until a viable engine is
+  found.
 
 **Note on n8n Cloud verification eligibility:** `pdf-lib` is bundled into
 `dist/` at build time (esbuild), so the published package declares zero
