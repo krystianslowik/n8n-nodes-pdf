@@ -2,7 +2,12 @@ import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n
 
 import { binaryPropertyField, outputOptionsField, pageRangeField } from '../../shared/descriptions';
 import { parsePageRanges } from '../../shared/pageRanges';
-import { embedImageAuto, loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
+import {
+	assertBinarySizeWithinLimit,
+	embedImageAuto,
+	loadPdfDocument,
+	savePdfAsBinary,
+} from '../../shared/pdf';
 import { resolveStampPosition, type StampPosition } from '../../shared/stampPosition';
 
 const showOnlyForImageWatermark = { resource: ['stamp'], operation: ['imageWatermark'] };
@@ -103,6 +108,7 @@ export async function imageWatermarkExecute(
 		: parsePageRanges(pageRanges, pageCount, this.getNode(), itemIndex);
 
 	const imageBuffer = await this.helpers.getBinaryDataBuffer(itemIndex, imageBinaryPropertyName);
+	assertBinarySizeWithinLimit(imageBuffer, this.getNode(), imageBinaryPropertyName, itemIndex);
 	const image = await embedImageAuto(
 		pdf,
 		imageBuffer,

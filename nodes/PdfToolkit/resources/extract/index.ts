@@ -18,7 +18,8 @@ const extractOperations: INodeProperties = {
 		{
 			name: 'Text',
 			value: 'text',
-			description: 'Extract per-page text, optionally with coordinates',
+			description:
+				'Not implemented yet — always throws an error. Extract per-page text, optionally with coordinates (see README).',
 			action: 'Extract text from a PDF',
 		},
 		{

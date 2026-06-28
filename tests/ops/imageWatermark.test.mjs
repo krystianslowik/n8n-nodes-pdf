@@ -16,6 +16,7 @@ import { createPdfToolkitInstance } from '../load-dist.mjs';
 import { getPageContentBytes } from '../pdf-content.mjs';
 
 const require = createRequire(import.meta.url);
+const { NodeOperationError } = require('n8n-workflow');
 const { PDFDocument, PDFName } = require('pdf-lib');
 
 function pageHasImageXObject(pdf, pageIndex) {
@@ -79,6 +80,41 @@ export const tests = [
 			assert.ok(pageHasImageXObject(stamped, 0), 'page 1 must be stamped');
 			assert.ok(!pageHasImageXObject(stamped, 1), 'page 2 must NOT be stamped');
 			assert.ok(!pageHasImageXObject(stamped, 2), 'page 3 must NOT be stamped');
+		},
+	},
+	{
+		// Regression test for the audit finding that the watermark IMAGE
+		// binary (unlike every other binary read in the codebase) skipped the
+		// shared `assertBinarySizeWithinLimit` guard, so an oversized image
+		// buffer went straight into `embedImageAuto`/pdf-lib's PNG decoder
+		// instead of being refused up front with the PRD R2 100MB message.
+		name:
+			'a watermark image over the 100MB limit is refused with a clear error naming the image binary property, not passed to the PNG decoder',
+		fn: async () => {
+			const original = await makeDistinguishablePdf(1);
+			const oversizedImage = Buffer.alloc(100 * 1024 * 1024 + 1);
+			const items = [itemWithBinaries({ data: original, image: oversizedImage })];
+			const mockThis = createMockExecuteFunctions(items, {
+				resource: 'stamp',
+				operation: 'imageWatermark',
+				binaryPropertyName: 'data',
+				imageBinaryPropertyName: 'image',
+				pageRanges: 'all',
+				options: {},
+			});
+
+			await assert.rejects(
+				() => createPdfToolkitInstance().execute.call(mockThis),
+				(error) => {
+					assert.ok(error instanceof NodeOperationError, `expected a NodeOperationError, got ${error}`);
+					assert.ok(
+						/"image"/.test(error.message) && /100MB/.test(error.message),
+						`expected message to name the image binary property and the 100MB limit, got: ${error.message}`,
+					);
+					assert.equal(error.context?.itemIndex, 0);
+					return true;
+				},
+			);
 		},
 	},
 ];
