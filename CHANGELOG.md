@@ -2,7 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## 0.2.0 - 2026-07-07
+
+**Summary:** 0.1.0 shipped only the node's UI/scaffold — every one of the 22
+operations across the six resources (Document, Generate, Form, Stamp,
+Extract, Secure) threw a bare "not implemented yet" error. 0.2.0 implements
+18 of those 22 for real against the bundled `pdf-lib` (Document's 6
+operations, Generate's 3, Form's 2, Stamp's 4, and Extract's Metadata/
+Embedded Images/Page Count), backed by 89 tests in `tests/` that drive the
+actual built `dist/` artifact through a shared mocked `IExecuteFunctions`.
+The remaining 4 (Extract > Text, and Secure's Encrypt/Decrypt/Set
+Permissions) stay stubs — each was genuinely investigated (a required
+engine, `pdfjs-dist` or `qpdf-wasm`, was evaluated for scanner-clean
+bundling and found architecturally incompatible with this package's
+no-filesystem/no-restricted-globals constraints; see `spike/FINDINGS.md`
+Q4/Q6) and each now throws a `NodeOperationError` naming the specific
+blocker instead of a generic "not implemented" message. `npm run build`,
+`npm run lint` (full n8n Cloud config, `n8n.strict: true`), and
+`spike/drive-analyze.mjs` (the scanner's own `analyzePackage()`) all stay
+green throughout — zero runtime dependencies, two justified
+`eslint-disable-next-line` suppressions (both on the bundled-away `pdf-lib`
+import line, see below). See `VERIFICATION.md` for the full honest
+submission dossier.
 
 ### Changed
 

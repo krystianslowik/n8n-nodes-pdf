@@ -9,6 +9,9 @@ fee, and no data ever leaves your machine.
 
 [Installation](#installation)
 [Operations](#operations)
+[Example workflows](#example-workflows)
+[Not yet supported](#not-yet-supported)
+[Limits](#limits)
 [Credentials](#credentials)
 [Compatibility](#compatibility)
 [Usage](#usage)
@@ -19,7 +22,19 @@ fee, and no data ever leaves your machine.
 
 ## Installation
 
-Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
+**Self-hosted:** follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/)
+in the n8n community nodes documentation — from your n8n instance,
+**Settings → Community Nodes → Install**, and enter `n8n-nodes-pdf`. No
+credentials or extra setup are needed; every operation runs in-process
+against binary data already in your workflow.
+
+**n8n Cloud:** this package is **not yet verified** for the Cloud community
+node catalog (see [Status: partial implementation](#status-partial-implementation)
+and `VERIFICATION.md` for the honest, current state of that process). Once
+verified, it will be installable the same way any other verified community
+node is on Cloud — search for "PDF Toolkit" in the nodes panel, no self-hosted
+install step required. Until then, Cloud users can't install unverified
+community nodes at all; self-hosting is the only install path today.
 
 ## Operations
 
@@ -158,6 +173,140 @@ being evaluated as a separate, self-hosted-first companion package so it
 doesn't jeopardize this package's verification eligibility. See the PRD's
 "Operations — Tier 2" section for details.
 
+## Example workflows
+
+Three copyable node-parameter snippets for the flagship operations — paste
+the `parameters` object into a **PDF Toolkit** node (or the whole block into
+an empty canvas as workflow JSON) and point **Binary Property** at whatever
+binary field your previous node produced.
+
+**Merge** — combine every incoming item's PDF (read from binary field `data`
+on each) into one output item:
+
+```json
+{
+  "parameters": {
+    "resource": "document",
+    "operation": "merge",
+    "mergeFrom": "allItems",
+    "binaryPropertyName": "data",
+    "options": {
+      "outputBinaryPropertyName": "data",
+      "outputFileName": "merged.pdf"
+    }
+  },
+  "name": "Merge PDFs",
+  "type": "n8n-nodes-pdf.pdfToolkit",
+  "typeVersion": 1,
+  "position": [680, 300]
+}
+```
+
+**Split** — split one incoming PDF into three output items by page range
+(pages 1-3, page 7, and page 9 to the end):
+
+```json
+{
+  "parameters": {
+    "resource": "document",
+    "operation": "split",
+    "binaryPropertyName": "data",
+    "pageRanges": "1-3,7,9-",
+    "options": {
+      "outputBinaryPropertyName": "data",
+      "outputFileName": "split.pdf"
+    }
+  },
+  "name": "Split PDF",
+  "type": "n8n-nodes-pdf.pdfToolkit",
+  "typeVersion": 1,
+  "position": [680, 300]
+}
+```
+
+**Generate → From Template** — render a declarative JSON document (PRD F3)
+into a new PDF, with no input binary needed:
+
+```json
+{
+  "parameters": {
+    "resource": "generate",
+    "operation": "fromTemplate",
+    "template": "{\n  \"content\": [\n    { \"type\": \"heading\", \"level\": 1, \"text\": \"Invoice #1042\" },\n    { \"type\": \"paragraph\", \"text\": \"Thank you for your business.\" },\n    { \"type\": \"table\", \"headers\": [\"Item\", \"Qty\", \"Price\"], \"rows\": [[\"Widget\", \"2\", \"$10.00\"]] }\n  ],\n  \"pageNumbers\": true\n}",
+    "options": {
+      "outputBinaryPropertyName": "data",
+      "outputFileName": "generated.pdf"
+    }
+  },
+  "name": "Generate Invoice PDF",
+  "type": "n8n-nodes-pdf.pdfToolkit",
+  "typeVersion": 1,
+  "position": [680, 300]
+}
+```
+
+## Not yet supported
+
+18 of this node's 22 operations are implemented for real (see
+[Status: partial implementation](#status-partial-implementation) below for
+the full breakdown). Four are honest, investigated stubs — each throws a
+`NodeOperationError` naming the specific blocker instead of a bare
+"not implemented" message, and each was genuinely evaluated (not just
+skipped) against the library the PRD proposed for it:
+
+| Resource → Operation | Why not | Investigated in |
+|---|---|---|
+| Extract → Text | The proposed engine, `pdfjs-dist`, could not be bundled scanner-clean: its Node-environment detection depends on the banned `process` global with no legitimate substitute, its worker architecture needs either a runtime dynamic `import()` of a file on disk or reimplementing an undocumented internal wire protocol, and it carries a much larger banned-globals surface than any other library this package bundles | `spike/FINDINGS.md` "Q4 — pdfjs-dist bundling" |
+| Secure → Encrypt | The proposed engine, `qpdf-wasm`, has no npm build whose Emscripten Node bootstrap avoids the banned `process`/`__dirname` globals and `require('fs')`/`require('path')` — entangled throughout its Node-environment detection, not one isolated fixable call site | `spike/FINDINGS.md` "Q6 — qpdf-wasm eval" |
+| Secure → Decrypt | Same `qpdf-wasm` blocker as Encrypt | `spike/FINDINGS.md` "Q6" |
+| Secure → Set Permissions | Same `qpdf-wasm` blocker as Encrypt | `spike/FINDINGS.md` "Q6" |
+
+None of these four are "not started" — each has a real evaluated engineering
+boundary, documented with the exact library builds tried, the exact banned
+globals hit, and the viable future paths (a companion package, a from-source
+Emscripten rebuild, or a from-scratch pure-JS implementation against
+`pdf-lib` + `node:crypto`). See `spike/FINDINGS.md` for the full write-ups
+and `VERIFICATION.md` for how these fit into the overall submission state.
+
+## Limits
+
+- **100MB per-binary size guard (PRD R2).** Every operation that loads a PDF
+  or image binary refuses inputs over 100MB with a clear error naming the
+  binary property and item, instead of letting the underlying library
+  attempt to parse an oversized buffer and fail unpredictably (or succeed
+  and risk a memory blowup). This is a hard ceiling per binary, not a total
+  workflow budget.
+- **Memory expectations.** At the scale actually measured
+  (`spike/harness.mjs`, 2-page/3-page/100-page test PDFs — see
+  `spike/FINDINGS.md` "Q3"), peak process RSS during a merge stays within a
+  few MB of the Node/V8/pdf-lib baseline (~140-150MB): merging a 2-page and
+  a 100-page document together added only ~2-3MB of peak RSS over the
+  baseline, because the PDF content itself (~22KB for the 100-page test
+  document) is tiny compared to the interpreter's own footprint. In plain
+  words: at the sizes tested, this node's memory use is dominated by Node
+  itself starting up, not by the PDF you feed it. This has **not** been
+  stress-tested at PRD-target scale (hundreds of pages, tens of MB per
+  file) or under concurrent execution — treat the 100MB guard as the hard
+  limit, not as a guarantee that anything under it runs comfortably on a
+  memory-constrained task runner.
+- **The event-loop-yield tradeoff, in plain words.** `pdf-lib` briefly pauses
+  ("yields") during large parse/save operations so it doesn't hog the whole
+  Node process while working through a big PDF. The way it normally does
+  that pause (`setTimeout`) is one of the exact JavaScript features n8n
+  Cloud's automated code scanner refuses to allow in a community node, so
+  this package swaps in a different pause mechanism (`queueMicrotask`) that
+  the scanner does allow. The practical difference: the original mechanism
+  would let *other* pending work on the same Node process (timers, incoming
+  HTTP requests, etc.) go first during that pause; the substitute does not
+  — it only guarantees the current operation doesn't freeze the process
+  solid. For a single PDF operation running by itself, you won't notice a
+  difference. If this node is doing heavy PDF work on the same Node process
+  that's also, say, serving other webhook requests at the same moment, those
+  other requests could see slightly more delay than they otherwise would.
+  This has not been measured under real concurrent load — see
+  `spike/FINDINGS.md` "Q2" for the full technical write-up and
+  `scripts/shims/yield.js` for where it's implemented.
+
 ## Credentials
 
 None required. Every Tier 1 operation runs locally against binary data already
@@ -245,6 +394,14 @@ none of which `n8n-nodes-pdfkit` ever supported — only encryption/permissions
 
 ## Version history
 
+- **0.2.0** — 18 of 22 operations implemented for real against the bundled
+  `pdf-lib` (all of Document, Generate, Form, Stamp; Extract's Metadata/
+  Embedded Images/Page Count), covered by 89 tests driving the actual built
+  `dist/` artifact. The remaining 4 (Extract → Text, Secure → Encrypt/
+  Decrypt/Set Permissions) are honest, investigated stubs — see
+  [Not yet supported](#not-yet-supported). Zero runtime dependencies
+  throughout; `npm run lint` is green under the full n8n Cloud config. See
+  `CHANGELOG.md` and `VERIFICATION.md` for the full detail.
 - **0.1.0** — Initial scaffold: full node UI (6 resources, 22 operations) and
   `execute()` routing; all operation bodies are stubs pending PRD open
   question O1.

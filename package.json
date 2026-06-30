@@ -1,9 +1,12 @@
 {
     "name": "n8n-nodes-pdf",
-    "version": "0.1.0",
-    "description": "n8n community node for local, in-process PDF operations (merge, split, extract, generate, forms, watermarks, encryption) with zero external services.",
+    "version": "0.2.0",
+    "description": "n8n community node for local, in-process PDF operations (merge, split, rotate/reorder/delete pages, generate from template/Markdown/images, fill and read forms, watermark and page numbers, text/metadata/image extraction) with zero external services.",
     "license": "MIT",
     "homepage": "https://github.com/krystianslowik/n8n-nodes-pdf",
+    "bugs": {
+        "url": "https://github.com/krystianslowik/n8n-nodes-pdf/issues"
+    },
     "keywords": [
         "n8n-community-node-package"
     ],
@@ -28,7 +31,9 @@
         "prepublishOnly": "n8n-node prerelease"
     },
     "files": [
-        "dist"
+        "dist",
+        "README.md",
+        "LICENSE"
     ],
     "n8n": {
         "n8nNodesApiVersion": 1,
