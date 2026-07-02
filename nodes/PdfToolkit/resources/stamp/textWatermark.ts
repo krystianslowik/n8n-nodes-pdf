@@ -1,7 +1,9 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
-import { binaryPropertyField, outputOptionsField } from '../../shared/descriptions';
-import { throwNotImplemented } from '../../shared/notImplemented';
+import { binaryPropertyField, outputOptionsField, pageRangeField } from '../../shared/descriptions';
+import { parsePageRanges } from '../../shared/pageRanges';
+import { degrees, loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
+import { resolveStampPosition, type StampPosition } from '../../shared/stampPosition';
 
 const showOnlyForTextWatermark = { resource: ['stamp'], operation: ['textWatermark'] };
 
@@ -14,7 +16,15 @@ export const textWatermarkDescription: INodeProperties[] = [
 		default: '',
 		required: true,
 		displayOptions: { show: showOnlyForTextWatermark },
-		description: 'Watermark text to stamp onto every page',
+		description: 'Watermark text to stamp onto every selected page',
+	},
+	{
+		...pageRangeField('stamp', 'textWatermark', {
+			description:
+				'Pages to stamp (e.g. "1-3,7,9-"), or "all" to stamp every page.',
+		}),
+		default: 'all',
+		required: false,
 	},
 	outputOptionsField(
 		'stamp',
@@ -61,12 +71,65 @@ export const textWatermarkDescription: INodeProperties[] = [
 	),
 ];
 
-// TODO: implement with pdf-lib (page.drawText with rotation/opacity for
-// every page) once the bundling strategy for PRD open question O1 is
-// resolved.
+// Implemented with pdf-lib: embeds Helvetica once, then `page.drawText()`
+// with rotation/opacity for every page selected by the page-range expression
+// (default "all" — same convention as Document > Rotate).
 export async function textWatermarkExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
 ): Promise<INodeExecutionData> {
-	return throwNotImplemented.call(this, 'Text Watermark', itemIndex);
+	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
+	const text = this.getNodeParameter('text', itemIndex, '') as string;
+	const pageRanges = this.getNodeParameter('pageRanges', itemIndex, 'all') as string;
+	const options = this.getNodeParameter('options', itemIndex, {}) as {
+		outputBinaryPropertyName?: string;
+		outputFileName?: string;
+		fontSize?: number;
+		opacity?: number;
+		rotation?: number;
+		position?: StampPosition;
+	};
+
+	const fontSize = options.fontSize ?? 48;
+	const opacity = options.opacity ?? 0.3;
+	const rotation = options.rotation ?? 45;
+	const position = options.position ?? 'center';
+
+	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+	const pdf = await loadPdfDocument(buffer, this.getNode(), binaryPropertyName, itemIndex);
+	const pageCount = pdf.getPageCount();
+
+	const normalizedRanges = pageRanges.trim().toLowerCase();
+	const isAllPages = normalizedRanges.length === 0 || normalizedRanges === 'all';
+	const pageIndices = isAllPages
+		? Array.from({ length: pageCount }, (_, index) => index)
+		: parsePageRanges(pageRanges, pageCount, this.getNode(), itemIndex);
+
+	const font = await pdf.embedFont('Helvetica');
+	const textWidth = font.widthOfTextAtSize(text, fontSize);
+	const textHeight = font.heightAtSize(fontSize);
+
+	const pages = pdf.getPages();
+	for (const pageIndex of pageIndices) {
+		const page = pages[pageIndex];
+		const { width, height } = page.getSize();
+		const { x, y } = resolveStampPosition(position, width, height, textWidth, textHeight);
+		page.drawText(text, {
+			x,
+			y,
+			size: fontSize,
+			font,
+			opacity,
+			rotate: degrees(rotation),
+		});
+	}
+
+	const outputFileName = options.outputFileName ?? 'watermarked.pdf';
+	const binaryData = await savePdfAsBinary(this, pdf, outputFileName);
+
+	return {
+		json: { pageCount, stampedPageCount: pageIndices.length },
+		binary: { [options.outputBinaryPropertyName ?? 'data']: binaryData },
+		pairedItem: itemIndex,
+	};
 }

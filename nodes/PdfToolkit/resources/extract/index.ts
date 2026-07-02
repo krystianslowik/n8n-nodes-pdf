@@ -18,7 +18,8 @@ const extractOperations: INodeProperties = {
 		{
 			name: 'Text',
 			value: 'text',
-			description: 'Extract per-page text, optionally with coordinates',
+			description:
+				'Not implemented yet — always throws an error. Extract per-page text, optionally with coordinates (see README).',
 			action: 'Extract text from a PDF',
 		},
 		{
@@ -30,7 +31,8 @@ const extractOperations: INodeProperties = {
 		{
 			name: 'Embedded Images',
 			value: 'embeddedImages',
-			description: 'Extract images embedded in the PDF',
+			description:
+				'Extract images embedded in the PDF (JPEG/DCTDecode images only — other image filters are not supported, see README)',
 			action: 'Extract embedded images from a PDF',
 		},
 		{
@@ -40,7 +42,9 @@ const extractOperations: INodeProperties = {
 			action: 'Get the page count of a PDF',
 		},
 	],
-	default: 'text',
+	// 'metadata' rather than 'text': Extract > Text is a documented stub
+	// (spike/FINDINGS.md Q4) and the default operation must work zero-config.
+	default: 'metadata',
 };
 
 export const extractDescription: INodeProperties[] = [

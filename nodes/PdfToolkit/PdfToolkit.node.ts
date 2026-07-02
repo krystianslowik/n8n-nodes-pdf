@@ -200,9 +200,6 @@ export class PdfToolkit implements INodeType {
 
 				returnData.push(await executeOperation.call(this, itemIndex));
 			} catch (error) {
-				// Every operation body in this scaffold is a stub (see
-				// `resources/**`), so this branch is expected to run for every
-				// item until the operations are implemented (PRD open question O1).
 				if (this.continueOnFail()) {
 					returnData.push({
 						json: this.getInputData(itemIndex)[0].json,

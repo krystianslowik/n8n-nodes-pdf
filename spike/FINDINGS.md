@@ -513,6 +513,513 @@ real.
 
 ---
 
+## Q4 — pdfjs-dist bundling (implementation Group 3, Extract > Text)
+
+**Answer: No — a genuine bundling attempt found pdfjs-dist's Node.js support
+model architecturally incompatible with this package's combined constraints
+(scanner-clean static analysis, no filesystem access at runtime, no
+unbundled dynamic `import()`), for reasons well beyond the single, isolated
+`setTimeout` violation pdf-lib had (Q2). Extract > Text remains a stub.**
+
+This section documents that attempt so a future pass doesn't have to
+re-derive the same findings from scratch.
+
+### What was tried
+
+Investigated `pdfjs-dist` versions 4.0.379 (Node `>=18`, matching this
+package's esbuild `target: 'node18'`) and 6.1.200 (current at spike time) —
+both share the same architecture described below. Two builds ship per
+version: `build/pdf.mjs` (the "generic"/modern build — display API + full
+web-viewer layer, e.g. annotation editors) and `legacy/build/pdf.mjs` (ES5 +
+core-js polyfills for old browsers). The **legacy** build was ruled out
+immediately: it textually contains **77** occurrences of the bare identifier
+`global` (core-js polyfill internals) versus 0 in the modern build — Node 18+
+needs none of that ES5 polyfilling, and 77 separate `global` references is a
+different order of problem than the modern build's smaller (but still real,
+see below) violation surface. All further investigation used `build/pdf.mjs`.
+
+### Finding 1 — the banned-globals surface is far larger than pdf-lib's, and includes code we can't disable
+
+Grepping `build/pdf.mjs` (pdfjs-dist 4.0.379) for every identifier
+`@n8n/community-nodes/no-restricted-globals` bans (see Q2's Round 2 for the
+full 11-item list, read directly from the rule source):
+
+```
+clearInterval: 0    global: 0        setInterval: 0     __dirname: 0
+clearTimeout: 16    globalThis: 16   setTimeout: 13      __filename: 0
+process: 7          setImmediate: 0  clearImmediate: 0
+```
+
+pdf-lib's entire violation was **one** `setTimeout` call site, in a helper
+(`waitForTick()`) whose PURPOSE (yield the event loop) could be legitimately
+served by a different primitive (`queueMicrotask`) under the same identifier
+name — a real behavioral substitute, not evasion (Q2 Round 2). pdfjs-dist's
+13 `setTimeout`/16 `clearTimeout` call sites are mostly **web-viewer UI
+code** bundled into the same file as the core parser — debounced resize
+handlers, annotation-editor focus/tooltip timers, DOM context-menu
+dismissal (`this.#canvasContextMenuTimeoutId = setTimeout(...)`, `this.
+#editorFocusTimeoutId = setTimeout(...)`, etc.). This code is dead weight
+for a headless, no-canvas, text-only extraction use case, but esbuild
+`bundle: true` on an ALREADY webpack-bundled, single-scope monolithic module
+(pdfjs-dist ships its own webpack output, not tree-shakeable source) cannot
+eliminate it — dead-code elimination needs fine-grained module boundaries
+that no longer exist post-webpack. So all 13/16 sites would ship regardless
+of which pdfjs-dist API we call. A `clearTimeout`+`setTimeout` shim pair
+analogous to `scripts/shims/yield.js` is *mechanically* possible (verified:
+esbuild's `inject` does not rewrite references inside the injected shim file
+itself — confirmed with a standalone repro), but `clearTimeout`'s only honest
+implementation under a `queueMicrotask`-based `setTimeout` is a no-op (no
+cancellable token), which silently breaks debounce semantics for whatever of
+that 13/16 call sites turns out to be reachable at runtime — untested,
+because of Finding 2 below, which stops the investigation before any of this
+UI-code violation surface even needs resolving.
+
+### Finding 2 — `process` is used for genuine Node-environment detection, not a substitutable behavior, and can't legally be obtained
+
+pdfjs-dist's own Node-vs-browser detection (`isNodeJS`, in `shared/util.js`,
+inlined into the bundle) is:
+
+```js
+const isNodeJS = typeof process === "object" && process + "" === "[object process]" &&
+  !process.versions.nw && !(process.versions.electron && process.type && process.type !== "browser");
+```
+
+Unlike `setTimeout`, this isn't a case where a different value under the
+same name serves the same purpose — pdfjs-dist uses `isNodeJS` to pick
+Node-specific `CMapReaderFactory`/`StandardFontDataFactory`/`CanvasFactory`
+implementations, and text extraction needs the REAL answer (`true`, since we
+always run in Node) to avoid falling into the browser-only `fetch()`-based
+factories. Two ways to legitimately obtain the real Node `process` were
+investigated and both are blocked:
+
+1. **Reference the global `process` identifier directly** — this is
+   exactly what `no-restricted-globals` bans (confirmed against the rule's
+   actual source, `packages/@n8n/eslint-plugin-community-nodes/src/rules/
+   no-restricted-globals.ts`: `process` is literally in the
+   `restrictedGlobals` array, and the rule's one carve-out — skipping
+   `MemberExpression` PROPERTY position, e.g. `obj.process` — does not apply
+   to `process.versions`, where `process` is the object, not the property).
+2. **`require('node:process')` / `require('process')`** (Node's real
+   builtin module for the same object, importable without touching the
+   *global*) — blocked by the OTHER rule, `no-restricted-imports`: its
+   `allowedModules` allowlist (`n8n-workflow`, `ai-node-sdk`, `lodash`,
+   `moment`, `p-limit`, `luxon`, `zod`, `crypto`, `node:crypto`,
+   `@n8n/ai-node-sdk` — read directly from the rule source) special-cases
+   `crypto`/`node:crypto` specifically, but has no general "Node builtins are
+   fine" carve-out, and `process`/`node:process` isn't on it.
+
+A third option — faking a `process`-shaped object under an `inject` shim
+(mirroring the `setTimeout` -> `queueMicrotask` precedent) — was prototyped
+and rejected. Empirically verified with a minimal esbuild repro
+(`inject: ['shim.js']`, `shim.js` exporting `process`): esbuild's bundler
+places the injected declaration in the SAME top-level scope as every
+unresolved reference it redirects, in a single-file cjs bundle — so a shim
+that tries to read the REAL global `process` from inside its own top-level
+code (e.g. `var process = (function(){ return process; })()`) shadows
+itself via `var` hoisting and resolves to `undefined`, not the real global,
+before any of its own code runs:
+
+```
+$ node out.js
+TypeError: Cannot read properties of undefined (reading 'platform')
+```
+
+The only way found to make such a shim "work" (return the REAL global
+object) is `new Function('return process')()` — a `Function` constructor
+body is evaluated in the realm's global scope, not the enclosing module
+scope, so it bypasses the local shadow. This was deliberately NOT adopted:
+unlike `queueMicrotask` replacing `setTimeout` (a genuine, documented
+behavioral substitute), `Function('return process')()` exists FOR NO OTHER
+REASON than to retrieve the exact same banned global while remaining
+invisible to the AST-based scope check — that is real, indefensible textual
+obfuscation of the kind Q2's Round 2 explicitly rejected for `setTimeout`
+("a real change to what the identifier binds to at runtime, not string
+obfuscation"), and a human reviewer (per Q2's Verdict, ~30% one-shot approval
+rate, code IS read) finding `new Function(...)` used specifically to smuggle
+a banned global past static analysis would be a far worse finding than an
+honestly-deferred stub. **This is the line where the attempt stopped being
+"find a legitimate bundling technique" and started being "defeat the
+verification check" — so it stopped.**
+
+### Finding 3 (would have been the next blocker even if Findings 1–2 were solved) — the Node "fake worker" path requires either filesystem-relative dynamic `import()`, or reimplementing pdf.js's internal wire protocol
+
+Independent of the globals problem: pdfjs-dist's display API (`getDocument()`)
+always delegates actual PDF parsing to a "worker" via `postMessage`-style
+message passing — even the official Node.js usage pattern is "run the
+worker code in the same process, fake the message channel." Traced the
+exact mechanism (`class PDFWorker` in `build/pdf.mjs`):
+
+- When `isNodeJS` is true, `PDFWorkerUtil.isWorkerDisabled` is set `true` up
+  front, and `GlobalWorkerOptions.workerSrc ||= "./pdf.worker.mjs"` — so
+  `PDFWorker._initialize()` skips spawning a real `Worker` and calls
+  `this._setupFakeWorker()` directly.
+- `_setupFakeWorker()` resolves `PDFWorker._setupFakeWorkerGlobal`, whose
+  implementation is `await import(/* webpackIgnore */ this.workerSrc)` — a
+  **dynamic import of a runtime STRING path** (defaulting to a relative
+  `./pdf.worker.mjs`, i.e. a `node_modules`-relative filesystem load). This
+  directly violates two constraints at once: "no dynamic imports left
+  unbundled" (esbuild cannot statically resolve/inline a computed
+  `import()` target) and "no filesystem access at runtime" (the whole point
+  of the dynamic import is to `require`/`import` a file off disk that this
+  package's `dist/` would need to ship and reference by path).
+- **A workaround exists in principle**: `getDocument()` accepts
+  `GlobalWorkerOptions.workerPort` (or a `port` option), and if a port is
+  supplied, `PDFWorker` skips `_initialize()`/the dynamic import entirely
+  and just wires a `MessageHandler` over the given port
+  (`_initializeFromPort()`). Node's real global `MessageChannel` (a builtin,
+  not one of the 11 banned globals) provides exactly the duplex-port shape
+  needed. **But** the "worker side" of that port must run
+  `WorkerMessageHandler.setup(handler, port)` (exported from the separate
+  `pdf.worker.mjs` bundle — confirmed present and statically importable),
+  and `.setup()` expects an already-constructed `MessageHandler` instance
+  wrapping the port — and `MessageHandler` itself (the class, not just the
+  static `.setup()` on `WorkerMessageHandler`) is **not exported from either
+  public bundle** (confirmed: grepped the full `export { ... }` statement at
+  the end of `build/pdf.mjs` — `MessageHandler` is not in it). The only way
+  around that is reimplementing pdf.js's internal message-handler wire
+  protocol (action dispatch, callback IDs, DATA/ERROR wrapping, streaming
+  support — partially read from `build/pdf.mjs`'s internal `class
+  MessageHandler`, ~150+ lines) as our own class, matching an UNDOCUMENTED,
+  version-coupled internal protocol closely enough for `WorkerMessageHandler
+  .setup()` to interoperate with it. That is a real, fragile, "reimplement
+  pdf.js's own internals and keep it in sync across version bumps" burden —
+  exactly the kind of maintenance liability that should disqualify a
+  bundling approach even before asking whether the scanner would accept it.
+
+### Verdict
+
+Stopping here (after Findings 1–3, before spending remaining budget trying
+to actually build the Finding-3 workaround) because Finding 2 alone is
+already a hard, non-negotiable stop: there is no legitimate (non-obfuscating)
+way found to give pdfjs-dist the real Node-environment signal it needs, and
+faking that signal only papers over Finding 2 while Findings 1 and 3 remain.
+Per this task's explicit instruction ("HONESTY over completion"), Extract >
+Text's stub (`nodes/PdfToolkit/resources/extract/text.ts`) is left in place,
+unchanged, rather than shipping a `pdfjs-dist`-based implementation that
+either (a) fails the scanner for real (globals), (b) requires an
+`eval`/`Function`-constructor-style obfuscation a human reviewer would flag
+as adversarial, or (c) depends on a hand-rolled reimplementation of an
+undocumented internal protocol that would silently break on the next
+pdfjs-dist version bump. Extract > Metadata and Extract > Embedded Images
+(this group's other two Extract ops) turned out **not to need pdfjs-dist at
+all** — both are fully served by `pdf-lib`, which is already bundled and
+scanner-clean (see their implementations and the module doc comments in
+`nodes/PdfToolkit/resources/extract/metadata.ts` and `embeddedImages.ts`).
+If Extract > Text is revisited, the two productive directions this spike did
+NOT get to (time-boxed) are: (1) a much smaller, purpose-built pure-JS PDF
+text-extraction routine written directly against pdf-lib's already-bundled
+raw object model (parse content streams' `Tj`/`TJ` operators + font
+`/ToUnicode` CMaps ourselves, avoiding pdfjs-dist's worker/UI-layer
+architecture entirely — real effort, but scoped to exactly what F5 needs,
+unlike pulling in a whole browser-viewer library), or (2) revisiting once
+pdfjs-dist ships an official synchronous/no-worker Node entry point (tracked
+upstream in the mozilla/pdf.js project; not available as of the versions
+checked here, 4.0.379 and 6.1.200).
+
+---
+
+## Q5 — pdfmake bundling (implementation Group 4, Generate resource)
+
+**Answer: No — a genuine bundling attempt found `pdfmake` architecturally
+incompatible with this package's constraints, for reasons that go beyond a
+single fixable violation (unlike pdf-lib's one `setTimeout` call, Q2) and
+beyond even pdfjs-dist's already-severe surface (Q4): `pdfmake`'s Node
+rendering path performs REAL filesystem reads at runtime for its standard
+fonts, not just a static-analysis violation. Generate's three operations
+(From Template, From Markdown, From Images) are implemented for real anyway
+— against a documented v0 fallback: a small, purpose-built `pdf-lib`-based
+layout engine (`nodes/PdfToolkit/shared/docRenderer.ts`), per this group's
+task instructions ("a stub is not an acceptable end state for Generate").**
+
+### What was tried
+
+`pdfmake` (`^0.3.11`) has two runtime entry points:
+
+1. **The Node/server path** (`main: "js/index.js"`, what `new
+   PdfPrinter(fonts).createPdfKitDocument(docDefinition)` uses) — this
+   delegates actual PDF writing to `pdfkit` (`dependencies: { pdfkit:
+   "^0.19.1" }`), which in turn depends on `fontkit`, `linebreak`,
+   `png-js`, `js-md5`, `@noble/hashes`, `@noble/ciphers`.
+2. **The browser bundle** (`browser: "build/pdfmake.js"`, paired with
+   `build/vfs_fonts.js` for the embedded-Roboto-font route the PRD's O4
+   answer specifically named) — a webpack/browserify bundle intended to run
+   in a browser tab, with browser-polyfilled `fs`/`zlib`/`Buffer`.
+
+Both were probed by installing `pdfmake` as a temporary devDependency,
+writing a minimal entry file that `require()`s each path, and running it
+through the exact same `esbuild --bundle --platform=node --target=node18
+--format=cjs` invocation `scripts/esbuild-bundle.mjs` uses, then grepping the
+bundled output for every identifier `@n8n/community-nodes/no-restricted-globals`
+bans (the same 11-item list from Q2's Round 2) plus `fs`/browser-only globals.
+
+### Finding 1 — the Node/pdfkit path reads its standard fonts off disk at runtime, a hard "no filesystem access" conflict, not just a lint violation
+
+```
+147777:  return fs.readFileSync(__dirname + "/data/Courier.afm", "utf8");
+147780:  return fs.readFileSync(__dirname + "/data/Courier-Bold.afm", "utf8");
+...(14 AFM font-metric files total)...
+150570:  const iccProfile = fs.readFileSync(`${__dirname}/data/sRGB_IEC61966_2_1.icc`);
+```
+
+`pdfkit`'s standard-14 font support (`Helvetica`, `Courier`, `Times-Roman`,
+etc. — the exact font family this package's `pdf-lib` fallback also uses)
+works by reading AFM (Adobe Font Metrics) text files off disk, relative to
+its own installed package directory (`__dirname`). This is `pdfkit`'s core,
+load-bearing mechanism for its most basic font support, not an edge case
+reachable only via some unusual code path — and it is a **real runtime
+filesystem read**, which conflicts with the PRD's "no filesystem access"
+constraint at a level no bundle-time shim can legitimately paper over (Q2's
+`queueMicrotask` trick works because it substitutes a different, real
+implementation of the SAME behavior — "yield the event loop"; there is no
+substitute that makes `fs.readFileSync(pathToAFonThatWasNeverShipped)`
+return real font-metric data without either (a) shipping the AFM files
+themselves in `dist/` and faking a working filesystem read for them — which
+just relocates the problem, still a real disk read of shipped data files, or
+(b) vendoring pdfkit's own AFM parsing AND all 14 fonts' metric tables as
+in-memory data, which is most of re-implementing pdfkit's font layer from
+scratch). The `no-restricted-globals` violation count on top of this
+(`__dirname`: 17, `process`: 29, `global`: 15 — from `fontkit`/`linebreak`/
+`js-md5`/`@noble/hashes`, none of them one isolated, purpose-identifiable
+call site the way pdf-lib's `waitForTick()` was) would still need solving
+even if the filesystem issue were somehow set aside.
+
+### Finding 2 — the browser bundle path is worse, not better, and isn't actually a Node-compatible artifact
+
+`build/pdfmake.js` (66,050 lines, a webpack bundle meant for a `<script>` tag
+in a browser tab) greps for the same banned-globals list at a much larger
+scale: `process`: 140, `globalThis`: 66, `global`: 47, `setTimeout`: 19,
+`clearTimeout`: 10, `setImmediate`: 2 — plus 217 references to `document` and
+167 to `window`, browser DOM globals this bundle uses for its "open/download
+the generated PDF" convenience helpers and Buffer/zlib browser polyfills.
+Unlike pdf-lib's single legitimately-shimmable `setTimeout` (Q2) or even
+pdfjs-dist's already-large-but-boundable UI-code surface (Q4, Finding 1),
+this is an order of magnitude larger violation surface, in a bundle that was
+never designed to run in Node at all — there is no isolated feature subset
+to carve out.
+
+### Verdict
+
+Both `pdfmake` paths are hard blockers, of a different and more severe kind
+than pdf-lib's (Q2) or even pdfjs-dist's (Q4): Finding 1 is a **real runtime
+filesystem access**, not just a static-analysis lint hit — the PRD's
+"no filesystem access at runtime" constraint is a functional requirement,
+not merely something the scanner happens to check for, and there is no
+legitimate (non-obfuscating) way to satisfy it while still using `pdfkit`'s
+actual standard-font mechanism. Per this group's explicit instruction ("If
+`pdfmake` cannot be bundled scanner-clean after a genuine attempt (~40 min),
+fall back... The op must WORK either way — a stub is not an acceptable end
+state for Generate"), the fallback was implemented instead: `From Template`
+and `From Markdown` are both rendered by
+`nodes/PdfToolkit/shared/docRenderer.ts`, a purpose-built layout engine using
+ONLY `pdf-lib` primitives (`drawText`/`drawLine`/`drawRectangle`/
+`drawImage`, the standard-14 fonts, and pdf-lib's own already-scanner-clean
+bundling from Q2) — word-wrapping, pagination, headings, paragraphs
+(with inline bold/italic/code runs), bullet/numbered lists, simple
+equal-width tables, fenced code blocks, images, and header/footer bands with
+`{{page}}`/`{{pages}}` substitution. `From Markdown` (PRD F9) is a
+hand-written line-based parser (`nodes/PdfToolkit/shared/markdown.ts`, no
+`marked`/`markdown-it` dependency, per this group's "keep the dep surface
+minimal" instruction) that maps onto the SAME renderer, so both operations
+share one rendering pipeline. Documented, honest v0 boundaries of this
+fallback (also in the node's own parameter descriptions and README): only
+the bundled base fonts are available (no custom/embedded fonts — PRD F3's
+"custom font via binary input" throws a clear "not yet supported" error
+instead of silently ignoring the option), no nested lists, no cell-spanning
+tables, and equal-width table columns only.
+
+---
+
+## Q6 — qpdf-wasm eval (implementation Group 5, Secure resource)
+
+**Answer: No — a genuine, time-boxed evaluation of the two viable qpdf-wasm
+npm builds found the same class of hard blocker Q4 (pdfjs-dist) and Q5
+(pdfmake) hit: real runtime filesystem/environment access baked into their
+Emscripten Node bootstrap code, entangled with multiple banned globals — not
+one isolated, cleanly-substitutable call site like pdf-lib's `setTimeout`
+(Q2). Encrypt/Decrypt/Set Permissions remain stubs, upgraded to explain WHY
+(see `nodes/PdfToolkit/resources/secure/{encrypt,decrypt,setPermissions}.ts`
+and the new `throwEngineUnavailable` helper in
+`nodes/PdfToolkit/shared/notImplemented.ts`) instead of a bare "not
+implemented yet".**
+
+### What was tried
+
+pdf-lib has no PDF standard-security-handler (encryption) implementation at
+all (confirmed against its own source — there is no encrypt/decrypt/
+permissions code path), so Secure needs a different engine per the PRD's
+own O2 framing ("qpdf-wasm eval"). Installed both npm-published qpdf-wasm
+builds as temporary devDependencies in an isolated `/tmp` sandbox (never
+added to this package's `package.json` — zero footprint on the real repo)
+and inspected their actual shipped JS/WASM, the same way Q4/Q5 did for their
+candidates:
+
+- `@jspawn/qpdf-wasm@0.0.2` — Apache-2.0, ships `qpdf.js` (Emscripten glue,
+  CommonJS) + `qpdf.wasm` (1.2MB). Its own README states plainly: **"This
+  doesn't expose the `qpdf` library — just the CLI."** i.e. the only surface
+  is `Module.callMain(argv)`, an in-process re-implementation of qpdf's
+  command-line argument parser (`--encrypt`, `--decrypt`, `--pages`, etc.),
+  not a programmatic encrypt/decrypt/permissions API.
+- `@neslinesli93/qpdf-wasm@0.3.0` — ISC, ships `dist/qpdf.js` + `dist/qpdf.wasm`
+  (1.3MB), same `callMain(argv)`-only surface (its README's usage examples
+  are all `qpdf.callMain([...])`).
+
+Both are ~1.2-1.4MB total (well inside the PRD's <10MB bundle budget — size
+was never the blocker), so the bundle-size question this eval also had to
+answer is: **not the problem.** The problem is what's *in* the JS glue.
+
+### Finding 1 — the Node bootstrap unconditionally references multiple banned globals, not one isolated call site
+
+Grepping each package's Node-targeting build for every identifier
+`@n8n/community-nodes/no-restricted-globals` bans (Q2 Round 2's 11-item
+list) plus the Node built-in modules `no-restricted-imports` doesn't
+allowlist:
+
+```
+@jspawn/qpdf-wasm/qpdf.js:        process (module-load-time: process.argv,
+                                   process.on("uncaughtException", ...),
+                                   process.on("unhandledRejection", ...)),
+                                   __dirname (path-locate line), require("fs"),
+                                   require("path")
+@neslinesli93/qpdf-wasm/dist/qpdf.js:
+  fs: 25   path: 12   process: 11   __dirname: 1   __filename: 2   setTimeout: 1
+```
+
+Unlike pdf-lib's ONE `setTimeout` call site inside `waitForTick()` — a
+helper whose entire purpose (yield the event loop) has a real, legal
+substitute (`queueMicrotask`, Q2 Round 2) — these references are the
+Emscripten-generated Node-environment bootstrap itself: detecting Node vs.
+browser, resolving the WASM file's path relative to `__dirname`, wiring
+`process.on('uncaughtException'/'unhandledRejection', ...)` handlers, and
+`require()`-ing `fs`/`path` to read the `.wasm` file and any input/output
+files off real disk. This is architecturally the same shape as Q4's
+pdfjs-dist finding (`process`-based `isNodeJS` detection used for a real
+behavioral branch, not a substitutable value) and Q5's pdfmake finding (a
+real runtime filesystem read for shipped binary data, here the `.wasm`
+bytes) — not a single fixable violation.
+
+### Finding 2 — the WASM-loading `fs.readFileSync` step alone has a real, legal escape hatch, but it doesn't reach far enough
+
+One narrower piece of this actually IS legitimately fixable, unlike Q4/Q5's
+blockers: `@jspawn/qpdf-wasm`'s glue code checks `if (d.instantiateWasm) try
+{ return d.instantiateWasm(e, a) } ...` **before** falling through to the
+`fs.readFileSync`-based file loader — `instantiateWasm` is Emscripten's own
+documented public option for supplying an already-fetched
+`WebAssembly.Module`/bytes (e.g. from an inlined base64 buffer compiled into
+the bundle), exactly the kind of "real behavioral substitute, not textual
+obfuscation" Q2 Round 2's `queueMicrotask` shim was. Verified present and
+callable (`typeof require('@jspawn/qpdf-wasm/qpdf.js') === 'function'`, a
+factory accepting an options object). **But** this only removes the
+WASM-bytes file read — it does nothing about Finding 1's `process.on(...)`/
+`__dirname`/`require('fs')`/`require('path')` references, which are
+textually present and execute unconditionally at module load time
+regardless of whether `instantiateWasm` is supplied. Shimming `__dirname`
+the same way `setTimeout` was shimmed (a local declaration with a real
+value, e.g. `''`, since it's never actually read once `instantiateWasm`
+bypasses the file-locate step) is plausible in isolation, but `process` is
+harder: `process.on('uncaughtException', ...)` needs a *callable* stand-in
+(not just a value), and unlike pdfjs-dist's `isNodeJS` check (Q4 Finding 2,
+correctly rejected), a stub `process` object here would be a genuine
+behavioral substitute (we don't need real uncaught-exception interception
+for a library call) — so this specific piece is NOT the same "indefensible
+obfuscation" Q4 rejected. The `require('fs')`/`require('path')` calls are
+the harder remaining blocker: they sit inside functions (`ma()`/`ja()`/
+`ka()`) that would never be CALLED once `instantiateWasm` is supplied, but
+`no-restricted-imports` is a pure AST match on the `require(...)` call
+expression itself — Q4/Q5 already established this fires "regardless of
+whether that code path executes." The only way to remove them from the
+*shipped* bundle is deleting those dead functions from the vendored glue
+file before bundling — patching a third-party build artifact, not writing a
+behavioral-equivalent shim. That crosses into the same territory Q4's
+Finding 3 flagged as a disqualifying maintenance burden (forking and
+hand-maintaining a vendored copy of generated glue code that would silently
+drift on the next qpdf-wasm version bump), and Q2's Verdict flagged as
+exactly what a human reviewer's "is this obfuscated/hand-modified
+third-party code?" check exists to catch — for an entire patched Emscripten
+output file, not two narrow `eslint-disable-next-line` source lines.
+
+### Finding 3 — even a scanner-clean build would only expose qpdf's CLI, not an encrypt/decrypt/permissions API
+
+Independent of Findings 1-2: both packages' only entry point is
+`callMain(argv)` — an in-process re-implementation of qpdf's command-line
+argument parser. Implementing Encrypt/Decrypt/Set Permissions against this
+means constructing argv arrays like `['--encrypt', userPassword,
+ownerPassword, '256', '--', '/in.pdf', '/out.pdf']`, writing input to the
+module's virtual `MEMFS` (`qpdf.FS.writeFile`), calling `callMain`, and
+reading back `qpdf.FS.readFile` — workable in principle (MEMFS is genuinely
+in-memory, not a real disk, so this part doesn't reintroduce the filesystem
+problem), but it means depending on qpdf's CLI flag surface and exit-code/
+stderr conventions as an undocumented-for-embedding integration contract
+that can shift across qpdf version bumps — a smaller, secondary version of
+the same "reimplement/track an internal, undocumented protocol" risk Q4's
+Finding 3 flagged for pdfjs-dist's worker wire format.
+
+### Verdict
+
+Stopping the evaluation here (Findings 1-3, ~25 minutes of the ~40-minute
+budget) because Finding 1 alone already puts this in the same category as
+Q4/Q5's rejections: multiple banned globals and banned built-in `require()`s
+entangled through the library's own Node bootstrap, not a single
+substitutable call site. Per this group's explicit instruction ("If NO: keep
+the 3 stubs but upgrade their error messages to explain WHY... an honest
+documented boundary beats a fake"), Encrypt/Decrypt/Set Permissions stay
+stubs. Their error messages now name the blocking engine (qpdf) and point
+here instead of saying only "not implemented yet" (`throwEngineUnavailable`,
+`nodes/PdfToolkit/shared/notImplemented.ts`), and `tests/ops/secure.test.mjs`
+asserts on that upgraded message content.
+
+**Viable future paths, in rough order of promise:**
+
+1. **Companion package (PRD O3 pattern)** — the same reasoning that keeps
+   HTML→PDF (Tier 2) out of the core package applies here: a separate
+   `n8n-nodes-pdf-secure`-style companion, published unverified/self-hosted-
+   first, could bundle a patched/vendored qpdf-wasm without risking THIS
+   package's Cloud-verification eligibility. Lowest engineering risk, but
+   moves Encrypt/Decrypt/Set Permissions out of the core node entirely
+   (product-scope decision, not this group's call).
+2. **From-source Emscripten rebuild with `-s SINGLE_FILE=1` and a stubbed
+   Node target.** Emscripten supports inlining the `.wasm` as a base64
+   string directly in the `.js` output (no separate file, no `fs`
+   read for the WASM bytes at all) and a build-time flag surface that could
+   in principle drop the CLI-only `process.argv`/`uncaughtException`
+   wiring if built against a custom `main()` shim instead of qpdf's real
+   `qpdf.cc` CLI entry point. Not attempted here — compiling qpdf's full C++
+   source (plus its own dependencies: zlib, jpeg, and qpdf's own crypto
+   backend) via Emscripten from scratch is a multi-hour-plus undertaking
+   clearly outside this group's ~40-minute time-box, and would need its own
+   dedicated spike.
+3. **A from-scratch, purpose-built pure-JS PDF standard-security-handler
+   implementation** (RC4/AES-128/AES-256 per the PDF spec's §7.6, using
+   Node's `crypto`/`node:crypto` — already allowlisted by
+   `no-restricted-imports`) **against pdf-lib's own bundled cryptographic
+   primitives and raw object model**, writing the encryption dictionary and
+   per-object key derivation ourselves instead of depending on qpdf at all.
+   This is real, scoped effort (the PDF encryption spec section is well-
+   documented, unlike pdfjs-dist's undocumented internal wire protocol from
+   Q4 Finding 3) but was out of scope for a "can an existing WASM build be
+   bundled" time-boxed eval — flagged as the most promising *scanner-clean-
+   by-construction* direction if Secure encryption support is prioritized
+   for a future release, since it would use only already-bundled/allowlisted
+   primitives (pdf-lib + `node:crypto`) instead of a new WASM engine.
+
+### A related scaffold/PRD reconciliation note (not a Q6 finding, but discovered while working this group)
+
+The PRD's §5 operations table assigns "read/strip metadata" to the **Secure**
+resource row (`pdf-lib + qpdf-wasm eval (O2)`), but the scaffolded Secure
+resource's UI only has three operations — Encrypt, Decrypt, Set Permissions
+(`nodes/PdfToolkit/resources/secure/index.ts`) — there is no "Strip
+Metadata" parameter/operation anywhere in the Secure resource to implement
+against. Metadata *reading* already lives under **Extract > Metadata**
+(implemented for real, Group 3/Q4 area) and there is no metadata-*stripping*
+operation scaffolded anywhere in the six resources. This is a genuine PRD/
+scaffold mismatch, not something this group could resolve by picking an
+implementation (there's no UI surface to wire a body into) — flagged here
+for the readiness pass to reconcile in the README/PRD (either scaffold a
+real "Strip Metadata" operation under Secure in a future group, or update
+the PRD table to point Extract > Metadata at the read half and drop the
+"strip" half, or fold "strip metadata" into a future Secure UI addition).
+
+---
+
 ## Other notes / process deviations
 
 - **Q2 Round 2 update:** `npm run lint` is green under the FULL, unmodified

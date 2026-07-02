@@ -1,14 +1,7 @@
-// pdf-lib is a devDependency, never a runtime one: esbuild bundles it into
-// dist/ (scripts/esbuild-bundle.mjs), so nothing under this exact `import`
-// line ever ships. `no-restricted-imports` is a source-level AST check with
-// no bundling-aware escape hatch (see spike/FINDINGS.md Q2); the artifact it
-// actually protects is the compiled dist file, which IS scanner-checked (via
-// spike/drive-analyze.mjs) and does not contain an unbundled `pdf-lib` import.
-// eslint-disable-next-line @n8n/community-nodes/no-restricted-imports
-import { PDFDocument } from 'pdf-lib';
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
 import { binaryPropertyField } from '../../shared/descriptions';
+import { loadPdfDocument } from '../../shared/pdf';
 
 export const extractPageCountDescription: INodeProperties[] = [
 	binaryPropertyField('extract', 'pageCount'),
@@ -26,7 +19,7 @@ export async function extractPageCountExecute(
 	// itemwise pre-check (via `extractBinaryInputParamMap`) before this runs.
 	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
 	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
-	const pdf = await PDFDocument.load(buffer);
+	const pdf = await loadPdfDocument(buffer, this.getNode(), binaryPropertyName, itemIndex);
 
 	return {
 		json: { pageCount: pdf.getPageCount() },

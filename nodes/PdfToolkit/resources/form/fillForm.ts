@@ -1,7 +1,17 @@
-import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
+import type { IExecuteFunctions, INode, INodeExecutionData, INodeProperties } from 'n8n-workflow';
+import { NodeOperationError } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField } from '../../shared/descriptions';
-import { throwNotImplemented } from '../../shared/notImplemented';
+import {
+	PDFCheckBox,
+	PDFDropdown,
+	PDFField,
+	PDFOptionList,
+	PDFRadioGroup,
+	PDFTextField,
+	loadPdfDocument,
+	savePdfAsBinary,
+} from '../../shared/pdf';
 
 const showOnlyForFillForm = { resource: ['form'], operation: ['fillForm'] };
 
@@ -35,12 +45,131 @@ export const fillFormDescription: INodeProperties[] = [
 	),
 ];
 
-// TODO: implement with pdf-lib (PdfDocument.getForm(), set each field from
-// "Field Values", optionally form.flatten()) once the bundling strategy for
-// PRD open question O1 is resolved.
+/**
+ * Sets one field's value from the corresponding "Field Values" JSON entry,
+ * dispatching on the field's concrete pdf-lib subclass (same `instanceof`
+ * approach as `readFields.ts`). Any pdf-lib error while setting the value
+ * (e.g. selecting an option that doesn't exist on a dropdown/radio group) is
+ * re-wrapped naming the field, per the PRD UX principle "errors name the
+ * failing page/field, not library stack traces".
+ */
+function setFieldValue(
+	field: PDFField,
+	fieldName: string,
+	rawValue: unknown,
+	node: INode,
+	itemIndex: number,
+): void {
+	try {
+		if (field instanceof PDFCheckBox) {
+			if (rawValue) {
+				field.check();
+			} else {
+				field.uncheck();
+			}
+			return;
+		}
+		if (field instanceof PDFRadioGroup) {
+			field.select(String(rawValue));
+			return;
+		}
+		if (field instanceof PDFDropdown) {
+			// Unlike `PDFRadioGroup`/`PDFOptionList`, pdf-lib's `PDFDropdown.select()`
+			// silently accepts a value outside `getOptions()` (dropdowns MAY be
+			// editable combo boxes) — validate explicitly so a typo'd value fails
+			// loudly instead of turning the field into free text unexpectedly.
+			const value = String(rawValue);
+			const validOptions = field.getOptions();
+			if (!validOptions.includes(value)) {
+				throw new Error(
+					`"${value}" is not one of this dropdown's options (${validOptions.join(', ')})`,
+				);
+			}
+			field.select(value);
+			return;
+		}
+		if (field instanceof PDFOptionList) {
+			field.select(Array.isArray(rawValue) ? rawValue.map(String) : String(rawValue));
+			return;
+		}
+		if (field instanceof PDFTextField) {
+			field.setText(rawValue === null || rawValue === undefined ? undefined : String(rawValue));
+			return;
+		}
+	} catch (error) {
+		throw new NodeOperationError(
+			node,
+			`Fill Form: could not set field "${fieldName}" to "${String(rawValue)}": ${
+				(error as Error).message
+			}`,
+			{ itemIndex },
+		);
+	}
+	throw new NodeOperationError(
+		node,
+		`Fill Form: field "${fieldName}" is of a type that cannot be filled with a value`,
+		{ itemIndex },
+	);
+}
+
+// Implemented with pdf-lib: `PDFDocument.getForm()`, set each field named in
+// "Field Values" from its JSON value, optionally `form.flatten()` (PRD F4).
 export async function fillFormExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
 ): Promise<INodeExecutionData> {
-	return throwNotImplemented.call(this, 'Fill Form', itemIndex);
+	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex, 'data') as string;
+	const fieldValuesParam = this.getNodeParameter('fieldValues', itemIndex, '{}');
+	const options = this.getNodeParameter('options', itemIndex, {}) as {
+		outputBinaryPropertyName?: string;
+		outputFileName?: string;
+		flatten?: boolean;
+	};
+
+	let fieldValues: Record<string, unknown>;
+	try {
+		fieldValues =
+			typeof fieldValuesParam === 'string'
+				? (JSON.parse(fieldValuesParam) as Record<string, unknown>)
+				: (fieldValuesParam as Record<string, unknown>);
+	} catch (error) {
+		throw new NodeOperationError(
+			this.getNode(),
+			`Fill Form: "Field Values" is not valid JSON: ${(error as Error).message}`,
+			{ itemIndex },
+		);
+	}
+
+	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
+	const pdf = await loadPdfDocument(buffer, this.getNode(), binaryPropertyName, itemIndex);
+	const form = pdf.getForm();
+
+	const fieldNames = Object.keys(fieldValues);
+	for (const fieldName of fieldNames) {
+		let field;
+		try {
+			field = form.getField(fieldName);
+		} catch {
+			throw new NodeOperationError(
+				this.getNode(),
+				`Fill Form: no field named "${fieldName}" exists in this PDF form`,
+				{ itemIndex },
+			);
+		}
+		setFieldValue(field, fieldName, fieldValues[fieldName], this.getNode(), itemIndex);
+	}
+
+	const flatten = options.flatten ?? false;
+	if (flatten) {
+		form.flatten();
+	}
+
+	const outputFileName = options.outputFileName ?? 'filled-form.pdf';
+	const binaryData = await savePdfAsBinary(this, pdf, outputFileName);
+
+	return {
+		json: { fieldsFilled: fieldNames.length, flattened: flatten },
+		binary: { [options.outputBinaryPropertyName ?? 'data']: binaryData },
+		pairedItem: itemIndex,
+	};
 }

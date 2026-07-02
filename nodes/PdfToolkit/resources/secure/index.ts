@@ -17,19 +17,21 @@ const secureOperations: INodeProperties = {
 		{
 			name: 'Encrypt',
 			value: 'encrypt',
-			description: 'Password-protect a PDF',
+			description: 'Not implemented yet — always throws an error. Password-protect a PDF (see README).',
 			action: 'Encrypt a PDF',
 		},
 		{
 			name: 'Decrypt',
 			value: 'decrypt',
-			description: 'Remove password protection from a PDF',
+			description:
+				'Not implemented yet — always throws an error. Remove password protection from a PDF (see README).',
 			action: 'Decrypt a PDF',
 		},
 		{
 			name: 'Set Permissions',
 			value: 'setPermissions',
-			description: 'Restrict printing, copying, editing, and other actions',
+			description:
+				'Not implemented yet — always throws an error. Restrict printing, copying, editing, and other actions (see README).',
 			action: 'Set permissions on a PDF',
 		},
 	],

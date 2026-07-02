@@ -5,3 +5,8 @@ node_modules
 # spike/drive-analyze.mjs unpacks the npm-packed tarball here to run the
 # scanner's analyzePackage() against it locally. Never committed.
 spike/.analyze-tmp/
+
+# tests/util/load-ts.mjs writes on-the-fly esbuild-transpiled .ts files here
+# to unit-test shared/pageRanges.ts directly; deleted right after each
+# require() call, but ignored in case a run is interrupted mid-write.
+tests/util/.ts-cache/
