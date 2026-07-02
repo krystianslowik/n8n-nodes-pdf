@@ -26,11 +26,14 @@ for the full product spec — it overrides everything else in this repo on
   below** over any code examples.
 - All code blocks in these docs are **illustrative and incomplete**.
   They **MUST NOT** be copied verbatim or assumed to be the final desired code.
-- This package currently ships **only stubs**: every operation body throws
-  `NodeOperationError('The "<Operation>" operation is not implemented yet')`.
-  Do not silently implement real PDF logic without also adding the chosen
-  library as a bundled (not runtime) dependency and resolving PRD open
-  question O1 (verification eligibility for zero-service utility nodes).
+- 18 of 22 Tier-1 operations are **real** (pdf-lib, esbuild-bundled as a
+  devDependency into `dist/` — see `spike/FINDINGS.md` for the bundling
+  architecture and the `setTimeout` shim). Four remain investigated stubs
+  with documented blockers: Extract > Text (pdfjs-dist, FINDINGS Q4) and
+  the Secure resource (qpdf-wasm, FINDINGS Q6). Never add a runtime
+  `dependencies` entry — new libraries go in `devDependencies` and get
+  bundled via `scripts/esbuild-bundle.mjs`; the scanner check
+  (`spike/drive-analyze.mjs`) must stay at 0 errors.
 - Never output generic `Wordpress`/`Example`-style filler — everything here
   is PDF-domain (Document/Generate/Form/Stamp/Extract/Secure resources).
 

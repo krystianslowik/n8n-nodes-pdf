@@ -42,7 +42,9 @@ const extractOperations: INodeProperties = {
 			action: 'Get the page count of a PDF',
 		},
 	],
-	default: 'text',
+	// 'metadata' rather than 'text': Extract > Text is a documented stub
+	// (spike/FINDINGS.md Q4) and the default operation must work zero-config.
+	default: 'metadata',
 };
 
 export const extractDescription: INodeProperties[] = [
