@@ -1,7 +1,7 @@
 # n8n-nodes-pdf (PDF Toolkit)
 
 This is an n8n community node for working with PDFs directly inside your
-workflows — merge, split, generate, fill forms, watermark, and extract.
+workflows: merge, split, generate, fill forms, watermark, and extract.
 Everything runs in-process on your n8n instance: no external API, no
 per-document fees, and no data leaving your machine.
 
@@ -23,7 +23,7 @@ Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes
 in the n8n community nodes documentation: **Settings → Community Nodes →
 Install**, then enter `n8n-nodes-pdf`. No credentials or extra setup needed.
 
-The package has zero runtime dependencies — the PDF engine ships bundled
+The package has zero runtime dependencies. The PDF engine ships bundled
 inside the node.
 
 ## Operations
@@ -53,13 +53,13 @@ property configurable under **Options**.
 
 Generation, Stamp → Text Watermark/Page Numbers, and Form → Fill Form use
 bundled Unicode fonts (Noto Sans/Noto Sans Mono, plus Noto Emoji as a
-monochrome fallback for emoji/pictographic characters) — full Latin, Latin
+monochrome fallback for emoji/pictographic characters), so full Latin, Latin
 Extended (e.g. Polish "ł", Turkish "ı", Czech "č"), Cyrillic, and Greek text
 is supported, not just the ASCII/WinAnsi range earlier versions were limited
 to. Emoji render in **monochrome only** (no color), and a ZWJ-joined emoji
 sequence (e.g. a "family" emoji built from several codepoints) may render as
 its separate component emoji if the bundled font has no combined glyph for
-that exact sequence. A character neither font covers (rare — mostly Private
+that exact sequence. A character neither font covers (rare; mostly Private
 Use Area codepoints, or scripts like CJK/Arabic/Hebrew that need a different
 font family) throws a clear error naming the character instead of silently
 dropping it or crashing with a raw font-library error. Custom fonts, nested
@@ -92,7 +92,7 @@ licenses (all OFL-1.1).
 | Page Count | Get the number of pages |
 
 Embedded Images extracts the raw image streams without re-encoding, which
-works for JPEG-compressed images — the common case for photos and scans.
+works for JPEG-compressed images, the common case for photos and scans.
 Images stored with other compression filters raise a clear error naming the
 unsupported filter.
 
@@ -148,7 +148,7 @@ whatever binary field the previous node produced (usually `data`).
   same instance may add latency to that instance.
 - **Form → Fill Form and emoji:** pdf-lib renders one form field's whole
   appearance with a single font, unlike Generate/Stamp's per-character emoji
-  fallback — a field value containing an emoji or other pictographic
+  fallback. A field value containing an emoji or other pictographic
   character throws a clear error naming the field, rather than silently
   producing a blank appearance.
 
@@ -165,11 +165,11 @@ helpers.
 
 ## Migrating from n8n-nodes-pdfkit
 
-**Generate → From Images** is a drop-in replacement for `n8n-nodes-pdfkit`
-(images → PDF, unmaintained since 2023): point it at the same image binaries
-and it produces the same one-page-per-image PDF. Everything else in this
-package — merge, split, forms, watermarks, extraction — is functionality
-`n8n-nodes-pdfkit` never had.
+If you used `n8n-nodes-pdfkit` (unmaintained since 2023) to turn images into
+a PDF, **Generate → From Images** does the same job. Point it at the same
+image binaries and you get the same one-page-per-image PDF. The rest of this
+package (merge, split, forms, watermarks, extraction) covers things
+`n8n-nodes-pdfkit` never did.
 
 ## Resources
 
@@ -178,16 +178,16 @@ package — merge, split, forms, watermarks, extraction — is functionality
 
 ## Version history
 
-- **0.2.2** — Removed Extract → Text and the Secure resource (Encrypt,
+- **0.2.2**: Removed Extract → Text and the Secure resource (Encrypt,
   Decrypt, Set Permissions) from the node UI; they were never functional,
   engine-blocked stubs since 0.2.0. Five resources / 18 operations, all
   functional.
-- **0.2.1** — Unicode + emoji text support: Generate, Text Watermark, Page
+- **0.2.1**: Unicode + emoji text support. Generate, Text Watermark, Page
   Numbers, and Fill Form now draw text with bundled Noto Sans/Noto Sans
   Mono/Noto Emoji fonts (Latin Extended, Cyrillic, Greek, monochrome emoji)
   instead of the WinAnsi-only built-in fonts.
-- **0.2.0** — 18 of 22 operations implemented (all of Document, Generate,
+- **0.2.0**: 18 of 22 operations implemented (all of Document, Generate,
   Form, and Stamp; Extract Metadata, Embedded Images, and Page Count),
   covered by an automated test suite. Zero runtime dependencies.
-- **0.1.0** — Initial scaffold: node UI and routing for 6 resources / 22
+- **0.1.0**: Initial scaffold. Node UI and routing for 6 resources / 22
   operations.
