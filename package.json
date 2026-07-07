@@ -44,6 +44,8 @@
 		]
 	},
 	"devDependencies": {
+		"@emnapi/core": "1.11.2",
+		"@emnapi/runtime": "1.11.2",
 		"@expo-google-fonts/noto-emoji": "0.4.6",
 		"@expo-google-fonts/noto-sans": "0.4.2",
 		"@expo-google-fonts/noto-sans-mono": "0.4.2",
