@@ -1,8 +1,7 @@
 /**
- * Generate > From Template (PRD F3). See
+ * Generate > From Template. See
  * `nodes/PdfToolkit/shared/docRenderer.ts` for why this is rendered with a
- * pdf-lib-based layout engine rather than pdfmake (spike/FINDINGS.md "Q5 —
- * pdfmake bundling").
+ * pdf-lib-based layout engine rather than pdfmake.
  *
  * Assertions search the DECODED content-stream text for the exact hex
  * encoding of individual, single-word markers (see `pdf-content.mjs`'s doc

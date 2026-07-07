@@ -1,5 +1,5 @@
 /**
- * Generate > From Images (PRD F7, the n8n-nodes-pdfkit parity op).
+ * Generate > From Images (the n8n-nodes-pdfkit parity op).
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';

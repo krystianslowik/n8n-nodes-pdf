@@ -52,8 +52,8 @@ export const generateExecuteMap: ExecuteMap = {
 	fromMarkdown: fromMarkdownExecute,
 };
 
-// From Images (PRD F7: "Images→PDF, the n8n-nodes-pdfkit parity op"):
-// consumes ALL incoming items (one image per item, in input order) in one
+// From Images (the n8n-nodes-pdfkit parity op: images → PDF): consumes ALL
+// incoming items (one image per item, in input order) in one
 // call, producing a single combined multi-page output PDF — the same
 // cardinality Document > Merge needs.
 export const generateManyToOneExecuteMap: ManyToOneExecuteMap = {

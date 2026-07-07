@@ -18,7 +18,7 @@ export const fromTemplateDescription: INodeProperties[] = [
 		required: true,
 		displayOptions: { show: showOnlyForFromTemplate },
 		description:
-			'Declarative JSON schema describing the document (PRD F3): `content` is an array of blocks — ' +
+			'Declarative JSON schema describing the document: `content` is an array of blocks — ' +
 			'{"type":"heading","level":1-3,"text":...}, {"type":"paragraph","text":...,"alignment":"left|center|right"}, ' +
 			'{"type":"list","items":[...],"ordered":false}, {"type":"table","headers":[...],"rows":[[...]]}, ' +
 			'{"type":"code","text":"..."}, {"type":"image","binaryPropertyName":"...","width":w,"height":h}, ' +
@@ -27,9 +27,8 @@ export const fromTemplateDescription: INodeProperties[] = [
 			'("a4"/"letter"), `margins` ({top,bottom,left,right}), `header`/`footer` (same text shape, with ' +
 			'"{{page}}"/"{{pages}}" placeholders), and `pageNumbers` (boolean shortcut for a "Page {{page}} ' +
 			'of {{pages}}" footer) are also supported. Rendered with a pdf-lib-based layout engine — see ' +
-			'spike/FINDINGS.md "Q5 — pdfmake bundling" for why pdfmake (the PRD\'s original engine choice for ' +
-			'this resource) could not be bundled scanner-clean, and nodes/PdfToolkit/shared/docRenderer.ts ' +
-			'for this renderer\'s exact v0 boundaries (base fonts only, no nested lists, equal-width table columns).',
+			'nodes/PdfToolkit/shared/docRenderer.ts for this renderer\'s exact v0 boundaries (base fonts ' +
+			'only, no nested lists, equal-width table columns).',
 		typeOptions: { rows: 10 },
 	},
 	outputOptionsField(
@@ -43,8 +42,8 @@ export const fromTemplateDescription: INodeProperties[] = [
 				default: '',
 				description:
 					'Name of an input binary field containing a custom (e.g. Unicode/CJK) font file to embed. NOT YET ' +
-					'SUPPORTED (see spike/FINDINGS.md "Q5 — pdfmake bundling") — setting this throws a clear error ' +
-					'rather than silently ignoring it. Only the bundled base fonts (Helvetica/Courier) are available.',
+					'SUPPORTED — setting this throws a clear error rather than silently ignoring it. Only the ' +
+					'bundled base fonts (Helvetica/Courier) are available.',
 			},
 		],
 		'generated.pdf',
@@ -190,9 +189,8 @@ function parseTemplate(raw: unknown, node: INode, itemIndex: number): ParsedTemp
 }
 
 // Implemented with a pdf-lib-based layout engine (`shared/docRenderer.ts`),
-// NOT pdfmake — see that module's doc comment and spike/FINDINGS.md "Q5 —
-// pdfmake bundling" for why: a genuine bundling attempt found pdfmake's
-// Node/pdfkit path reads standard-font AFM metrics off disk
+// NOT pdfmake — see that module's doc comment for why: pdfmake's Node/pdfkit
+// path reads standard-font AFM metrics off disk
 // (`fs.readFileSync(__dirname + ...)`, a hard "no filesystem access at
 // runtime" conflict, not just a scanner lint issue) and both that path and
 // pdfmake's browser bundle pull in dozens of `no-restricted-globals`
@@ -214,8 +212,7 @@ export async function fromTemplateExecute(
 			this.getNode(),
 			'From Template: custom font embedding via a binary input is not yet supported — this operation\'s ' +
 				'pdf-lib-based renderer only has the bundled base fonts (Helvetica/Courier/Times) available. ' +
-				'See spike/FINDINGS.md "Q5 — pdfmake bundling" for why the pdfmake-based renderer that would ' +
-				'support arbitrary embedded fonts could not be bundled scanner-clean.',
+				"See the README's Generate section.",
 			{ itemIndex },
 		);
 	}

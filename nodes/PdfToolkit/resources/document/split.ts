@@ -31,7 +31,7 @@ function fileNameForRange(baseFileName: string, raw: string): string {
 // PER comma-separated token (shared/pageRanges.ts), then copies each
 // group's pages into its own new PDFDocument.
 //
-// One-to-many cardinality (PRD: "Batch-aware: ... split 1 → N items"): this
+// One-to-many cardinality (batch-aware: splits 1 → N items): this
 // still consumes exactly one input item (itemIndex), but returns an array so
 // it can emit one output item per range — see `OneToManyExecuteMap` in
 // `shared/types.ts` and the dispatch in `PdfToolkit.node.ts`, which pushes

@@ -20,8 +20,8 @@ export const readFieldsDescription: INodeProperties[] = [
 ];
 
 /**
- * One entry per form field, per the PRD F4 shape: "field name, type, current
- * value, options where applicable".
+ * One entry per form field: name, type, current value, and options where
+ * applicable.
  */
 interface FormFieldJson {
 	name: string;
@@ -68,7 +68,7 @@ function describeField(field: PDFField): FormFieldJson {
 }
 
 // Implemented with pdf-lib: `PDFDocument.getForm().getFields()`, mapped to
-// name/type/value/options JSON (PRD F4). `getForm()` returns an empty
+// name/type/value/options JSON. `getForm()` returns an empty
 // `PDFForm` (zero fields, not an error) for a PDF with no AcroForm at all —
 // that's a legitimate "this PDF has no form fields" result, not a failure.
 export async function readFieldsExecute(

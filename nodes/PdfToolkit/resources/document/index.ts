@@ -83,13 +83,13 @@ export const documentExecuteMap: ExecuteMap = {
 	deletePages: deletePagesExecute,
 };
 
-// Merge (PRD: "Batch-aware: ... merge N items → 1"): consumes ALL incoming
+// Merge (batch-aware: merges N items → 1): consumes ALL incoming
 // items in one call, producing exactly one output item.
 export const documentManyToOneExecuteMap: ManyToOneExecuteMap = {
 	merge: mergeExecute,
 };
 
-// Split (PRD: "Batch-aware: ... split 1 → N items"): still consumes exactly
+// Split (batch-aware: splits 1 → N items): still consumes exactly
 // one input item per call, but returns zero or more output items.
 export const documentOneToManyExecuteMap: OneToManyExecuteMap = {
 	split: splitExecute,

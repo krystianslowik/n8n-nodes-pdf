@@ -1,8 +1,8 @@
 /**
  * Stamp > Overlay PDF: overlays the first page (repeated) or matching pages
  * of a second PDF onto the target, via `PDFDocument.embedPdf()` (a thin
- * wrapper around pdf-lib's `embedPage`/`embedPages`) + `page.drawPage()`
- * (PRD F6/spec). Asserts page count unchanged + content-stream growth on
+ * wrapper around pdf-lib's `embedPage`/`embedPages`) + `page.drawPage()`.
+ * Asserts page count unchanged + content-stream growth on
  * every affected page (same honest, structural check as the other Stamp
  * tests — see `tests/pdf-content.mjs`).
  *

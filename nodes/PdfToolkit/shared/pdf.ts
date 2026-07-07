@@ -4,10 +4,10 @@ import { NodeOperationError } from 'n8n-workflow';
 // pdf-lib is a devDependency, never a runtime one: esbuild bundles it into
 // dist/ (scripts/esbuild-bundle.mjs), so nothing under this exact `import`
 // line ever ships. `no-restricted-imports` is a source-level AST check with
-// no bundling-aware escape hatch (see spike/FINDINGS.md Q2); the artifact it
-// actually protects is the compiled dist file, which IS scanner-checked (via
-// spike/drive-analyze.mjs) and does not contain an unbundled `pdf-lib`
-// import. Centralizing the import here (instead of repeating it in every
+// no bundling-aware escape hatch; the artifact it actually protects is the
+// compiled dist file, which IS scanner-checked (via `npm run scan`) and does
+// not contain an unbundled `pdf-lib` import. Centralizing the import here
+// (instead of repeating it in every
 // resources/**/*.ts file) means only this one ImportDeclaration needs the
 // suppression (ESLint reports on the `import` keyword's line, which is the
 // line right after this comment, regardless of how many named specifiers the
@@ -58,9 +58,9 @@ export {
 };
 
 /**
- * PRD R2 ("handle 100-page/50MB docs... hard input-size guards + clear
- * errors"). 100MB is the hard ceiling for any single PDF binary this node
- * will attempt to load.
+ * 100MB is the hard ceiling for any single PDF binary this node will attempt
+ * to load, to avoid unpredictable failures or a memory blowup on oversized
+ * input.
  */
 export const MAX_BINARY_SIZE_BYTES = 100 * 1024 * 1024;
 
@@ -69,10 +69,9 @@ function formatMb(bytes: number): string {
 }
 
 /**
- * PRD R2 input-size guard: refuse binaries over 100MB with a clear error
- * naming the binary property and item, instead of letting pdf-lib attempt to
- * load an oversized buffer and fail unpredictably (or succeed and risk a
- * memory blowup downstream).
+ * Refuse binaries over 100MB with a clear error naming the binary property
+ * and item, instead of letting pdf-lib attempt to load an oversized buffer
+ * and fail unpredictably (or succeed and risk a memory blowup downstream).
  */
 export function assertBinarySizeWithinLimit(
 	buffer: Buffer,
@@ -91,11 +90,10 @@ export function assertBinarySizeWithinLimit(
 }
 
 /**
- * Loads a PDF from a binary buffer, applying the PRD R2 size guard first and
+ * Loads a PDF from a binary buffer, applying the size guard first and
  * wrapping any pdf-lib parse failure in a `NodeOperationError` that names
- * the failing binary property and item (PRD UX principle: "Errors name the
- * failing page/field, not library stack traces") instead of letting a raw
- * pdf-lib parse error/stack trace surface to the user.
+ * the failing binary property and item instead of letting a raw pdf-lib
+ * parse error/stack trace surface to the user.
  *
  * `loadOptions` defaults to pdf-lib's own defaults (in particular
  * `updateMetadata: true`), matching every existing caller's behavior. Pass
@@ -148,10 +146,10 @@ export async function savePdfAsBinary(
  * pdf-lib's `embedPng`/`embedJpg` are format-specific (no generic
  * "embedImage" that sniffs the format); the PNG signature is the 8-byte
  * magic number `89 50 4E 47 0D 0A 1A 0A`, everything else is treated as JPEG
- * (matches what n8n's binary-data JPEG/PNG mime types cover — PRD F6/F7
- * "PNG/JPG binary input"). Shared by Stamp > Image Watermark, Generate >
- * From Images, and Generate > From Template/From Markdown's image blocks so
- * this sniffing logic isn't duplicated across every caller.
+ * (matches what n8n's binary-data JPEG/PNG mime types cover). Shared by
+ * Stamp > Image Watermark, Generate > From Images, and Generate > From
+ * Template/From Markdown's image blocks so this sniffing logic isn't
+ * duplicated across every caller.
  */
 export function looksLikePng(buffer: Buffer): boolean {
 	const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -162,8 +160,8 @@ export function looksLikePng(buffer: Buffer): boolean {
 /**
  * Embeds a PNG/JPEG image buffer into `pdf`, sniffing the format via
  * {@link looksLikePng}, and wraps any pdf-lib decode failure in a
- * `NodeOperationError` naming the failing binary property/item (PRD UX:
- * "Errors name the failing page/field, not library stack traces").
+ * `NodeOperationError` naming the failing binary property/item instead of
+ * surfacing a raw pdf-lib stack trace.
  */
 export async function embedImageAuto(
 	pdf: PDFDocument,

@@ -26,7 +26,7 @@ export const fillFormDescription: INodeProperties[] = [
 		default: '{}',
 		required: true,
 		displayOptions: { show: showOnlyForFillForm },
-		description: 'JSON object mapping form field names to the values to fill them with (PRD F4)',
+		description: 'JSON object mapping form field names to the values to fill them with',
 		typeOptions: { rows: 6 },
 	},
 	outputOptionsField(
@@ -50,8 +50,8 @@ export const fillFormDescription: INodeProperties[] = [
  * dispatching on the field's concrete pdf-lib subclass (same `instanceof`
  * approach as `readFields.ts`). Any pdf-lib error while setting the value
  * (e.g. selecting an option that doesn't exist on a dropdown/radio group) is
- * re-wrapped naming the field, per the PRD UX principle "errors name the
- * failing page/field, not library stack traces".
+ * re-wrapped naming the field, so errors name the failing field instead of
+ * surfacing a raw pdf-lib error/stack trace.
  */
 function setFieldValue(
 	field: PDFField,
@@ -113,7 +113,7 @@ function setFieldValue(
 }
 
 // Implemented with pdf-lib: `PDFDocument.getForm()`, set each field named in
-// "Field Values" from its JSON value, optionally `form.flatten()` (PRD F4).
+// "Field Values" from its JSON value, optionally `form.flatten()`.
 export async function fillFormExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,

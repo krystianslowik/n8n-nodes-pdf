@@ -1,5 +1,5 @@
 /**
- * Generate > From Markdown (PRD F9). Shares the pdf-lib-based layout engine
+ * Generate > From Markdown. Shares the pdf-lib-based layout engine
  * (`shared/docRenderer.ts`) with From Template, via the hand-written parser
  * in `shared/markdown.ts` (unit-tested directly in `tests/shared/markdown.test.mjs`).
  *

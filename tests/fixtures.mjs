@@ -1,6 +1,6 @@
 /**
  * Test-PDF generators, built with the bundled pdf-lib itself (same library
- * the dist build inlines — see `spike/harness.mjs`, which this generalizes).
+ * the dist build inlines).
  */
 import { createRequire } from 'node:module';
 import { deflateSync } from 'node:zlib';
@@ -94,11 +94,10 @@ export function makeTinyPng() {
 	return Buffer.concat([signature, ihdr, idat, iend]);
 }
 
-// A committed tiny (4x4) baseline JPEG fixture, per this group's task scope
-// ("committed tiny fixtures where generation can't produce the needed
-// feature"): unlike PNG (simple DEFLATE + CRC32, hand-built above), a
-// byte-correct baseline JPEG needs a real DCT + Huffman encoder, which is
-// out of scope to write from scratch here. Generated once with macOS's
+// A committed tiny (4x4) baseline JPEG fixture: unlike PNG (simple DEFLATE +
+// CRC32, hand-built above), a byte-correct baseline JPEG needs a real DCT +
+// Huffman encoder, which is out of scope to write from scratch here.
+// Generated once with macOS's
 // built-in `sips` (`sips -s format jpeg tiny.png --out tiny.jpg`, where
 // `tiny.png` was the hand-built PNG above), then base64-inlined so this
 // fixture is deterministic and has no build-time/runtime dependency on

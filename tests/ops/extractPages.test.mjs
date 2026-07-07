@@ -1,5 +1,5 @@
 /**
- * Document > Extract Pages (PRD F2): all selected pages land in ONE output
+ * Document > Extract Pages: all selected pages land in ONE output
  * PDF (unlike Split, which emits one output item per range).
  */
 import assert from 'node:assert/strict';

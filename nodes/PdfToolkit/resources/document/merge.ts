@@ -7,8 +7,8 @@ import { PDFDocument, loadPdfDocument } from '../../shared/pdf';
 const showOnlyForMerge = { resource: ['document'], operation: ['merge'] };
 
 /**
- * Merge has two source modes (PRD scaffold spec + README: "combine PDFs from
- * all incoming items or listed binary properties"):
+ * Merge has two source modes (see README: "combine PDFs from all incoming
+ * items or listed binary properties"):
  * - `allItems` (default): one PDF per incoming item, read from the same
  *   named binary field on every item (the common "Binary Property" param).
  * - `binaryProperties`: an explicit, ordered list of binary field names to
@@ -64,7 +64,7 @@ export const mergeDescription: INodeProperties[] = [
 // binary, preserving item order for `allItems` and item-then-list order for
 // `binaryProperties`).
 //
-// Many-to-one cardinality (PRD: "Batch-aware: ... merge N items → 1"): this
+// Many-to-one cardinality (batch-aware: merges N items → 1): this
 // is called ONCE per node execution with every incoming item, not once per
 // item — see `ManyToOneExecuteMap` in `shared/types.ts` and the dispatch in
 // `PdfToolkit.node.ts`. There's no single `itemIndex` to blame a failure on

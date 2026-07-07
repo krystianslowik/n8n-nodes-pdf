@@ -40,8 +40,7 @@ export const setPermissionsDescription: INodeProperties[] = [
 // The PDF permissions bitmask lives inside the standard-security-handler
 // encryption dictionary (a permitted-but-unencrypted-content PDF still needs
 // an owner-password-protected encryption dict to carry restriction flags) —
-// pdf-lib cannot write one, same root cause as encrypt.ts/decrypt.ts. See
-// spike/FINDINGS.md "Q6 — qpdf-wasm eval".
+// pdf-lib cannot write one, same root cause as encrypt.ts/decrypt.ts.
 export async function setPermissionsExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
@@ -49,10 +48,9 @@ export async function setPermissionsExecute(
 	return throwEngineUnavailable.call(
 		this,
 		'Set Permissions',
-		'setting PDF permissions needs a WASM engine (qpdf), and the evaluated qpdf-wasm builds ' +
+		'setting PDF permissions needs a WASM engine (qpdf), and the available qpdf-wasm builds ' +
 			'cannot yet be bundled scanner-clean for this package (no filesystem/env access at ' +
-			'runtime) — see spike/FINDINGS.md "Q6 — qpdf-wasm eval" for the full evaluation and ' +
-			'viable future paths',
+			"runtime). See the README's Limits section.",
 		itemIndex,
 	);
 }

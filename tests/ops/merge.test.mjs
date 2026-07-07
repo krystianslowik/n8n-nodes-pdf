@@ -1,7 +1,5 @@
 /**
- * Document > Merge. Ports the two cases from `spike/harness.mjs` (kept
- * there, untouched, as historical spike evidence) into the shared test
- * structure.
+ * Document > Merge.
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -61,10 +59,9 @@ export const tests = [
 		},
 	},
 	{
-		// Regression test for the audit finding that Merge called raw
-		// `PDFDocument.load()` per source instead of the shared
-		// `loadPdfDocument` helper, so it had NO PRD R2 100MB guard on any of
-		// its merge sources.
+		// Regression test: Merge used to call raw `PDFDocument.load()` per
+		// source instead of the shared `loadPdfDocument` helper, so it had no
+		// 100MB size guard on any of its merge sources.
 		name: 'a merge source over the 100MB limit is refused with a clear error naming the property and source item, not a raw pdf-lib crash',
 		fn: async () => {
 			const pdfA = await makePdf(2, 'Doc A');

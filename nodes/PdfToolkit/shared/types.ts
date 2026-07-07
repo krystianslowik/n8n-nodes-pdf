@@ -21,7 +21,7 @@ export type ExecuteMap = Record<string, OperationExecuteFunction>;
  * Execute function shape for operations with **many-to-one** cardinality:
  * they consume ALL incoming items in a single call (not one call per item)
  * and produce exactly one output item. This is what Document > Merge needs
- * (PRD §5 UX principles: "Batch-aware: ... merge N items → 1") — a per-item
+ * (batch-aware: merges N items → 1) — a per-item
  * loop cannot express "combine every item into one output", so
  * `PdfToolkit.node.ts` dispatches operations registered in a
  * `ManyToOneExecuteMap` once per node execution, before the itemwise loop,
@@ -42,7 +42,7 @@ export type ManyToOneExecuteMap = Record<string, ManyToOneExecuteFunction>;
  * each call still consumes exactly one input item (so the normal per-item
  * binary-assertion pre-check still applies), but produces zero or more
  * output items instead of exactly one. This is what Document > Split needs
- * (PRD §5 UX principles: "Batch-aware: ... split 1 → N items") —
+ * (batch-aware: splits 1 → N items) —
  * `PdfToolkit.node.ts` dispatches operations registered in a
  * `OneToManyExecuteMap` inside the itemwise loop, pushing every item the
  * call returns (instead of assuming exactly one).

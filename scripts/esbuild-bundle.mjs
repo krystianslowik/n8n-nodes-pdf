@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Spike (branch spike/esbuild-bundling) — bundles heavy PDF libs (pdf-lib,
- * later pdfmake/pdfjs-dist) into the TypeScript-compiled node JS so the
- * published package can declare ZERO runtime "dependencies" (PRD open
- * question O1 / .agents "no runtime dependencies" verification rule).
+ * Bundles heavy PDF libs (pdf-lib today; pdfmake/pdfjs-dist were evaluated
+ * but couldn't be bundled scanner-clean, see README's Limits section) into
+ * the TypeScript-compiled node JS so the published package can declare ZERO
+ * runtime "dependencies".
  *
  * Runs AFTER `n8n-node build` (which does the TypeScript compile into
  * `dist/`). This step rewrites the compiled node entry file in place,
@@ -41,18 +41,17 @@ await build({
 	allowOverwrite: true,
 	sourcemap: false,
 	logLevel: 'info',
-	// SPIKE FINDING: pdf-lib itself calls `console.warn`/`console.log` in a
-	// few validation paths (e.g. malformed-PDF recovery). Once bundled, that
-	// third-party code is indistinguishable from "our" code to static
-	// analysis, and n8n's community-node scanner runs a blanket `no-console`
-	// rule (see spike/FINDINGS.md Q1/Q2). `drop: ['console']` strips those
-	// calls from the bundle. This is safe here (they're debug/warning noise,
-	// not control flow pdf-lib depends on), but is a real, load-bearing
-	// workaround, not a formality.
+	// pdf-lib itself calls `console.warn`/`console.log` in a few validation
+	// paths (e.g. malformed-PDF recovery). Once bundled, that third-party
+	// code is indistinguishable from "our" code to static analysis, and
+	// n8n's community-node scanner runs a blanket `no-console` rule.
+	// `drop: ['console']` strips those calls from the bundle. This is safe
+	// here (they're debug/warning noise, not control flow pdf-lib depends
+	// on), but is a real, load-bearing workaround, not a formality.
 	drop: ['console'],
-	// SPIKE FINDING (see scripts/shims/yield.js for the full write-up):
-	// pdf-lib's own `cjs/utils/async.js` (`waitForTick`, called from every
-	// PDFDocument parse/save path) calls the global `setTimeout`, which
+	// See scripts/shims/yield.js for the full write-up: pdf-lib's own
+	// `cjs/utils/async.js` (`waitForTick`, called from every PDFDocument
+	// parse/save path) calls the global `setTimeout`, which
 	// `@n8n/community-nodes/no-restricted-globals` bans outright — and unlike
 	// `console`, there's no `drop` option for an arbitrary global identifier.
 	// `inject` splices in a LOCAL function declaration named `setTimeout`
@@ -62,7 +61,7 @@ await build({
 	// unresolved global in the output file's scope, so the scanner's
 	// scope-based check no longer flags it. This is a real, verified
 	// behavior change (pdf-lib calls our function, not the Node.js global),
-	// not textual obfuscation — see spike/FINDINGS.md Q2 for the honest
+	// not textual obfuscation — see scripts/shims/yield.js for the
 	// event-loop-yielding tradeoff this introduces (queueMicrotask is not a
 	// full substitute for setTimeout/setImmediate, both of which are legal
 	// vs. banned respectively).
@@ -77,8 +76,7 @@ await build({
 // bloat: they are the *unbundled* tsc output, so they still contain literal
 // `require('pdf-lib')` calls, and the n8n community-node scanner lints every
 // `.js` file in the published tarball, not just the entry point. Pruning
-// them is required for the scanner's `no-restricted-imports` check to pass
-// (see spike/FINDINGS.md Q1/Q2).
+// them is required for the scanner's `no-restricted-imports` check to pass.
 rmSync('dist/nodes/PdfToolkit/resources', { recursive: true, force: true });
 rmSync('dist/nodes/PdfToolkit/shared', { recursive: true, force: true });
 // Also drop the stale pre-bundle sourcemap tsc emitted for the entry file

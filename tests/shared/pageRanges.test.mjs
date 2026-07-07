@@ -1,5 +1,5 @@
 /**
- * Unit tests for `nodes/PdfToolkit/shared/pageRanges.ts` (PRD F2). Loaded
+ * Unit tests for `nodes/PdfToolkit/shared/pageRanges.ts`. Loaded
  * directly via `tests/util/load-ts.mjs` (esbuild transpile, no full node
  * build required) rather than through the bundled dist artifact, since this
  * module has no pdf-lib dependency to exercise for real.

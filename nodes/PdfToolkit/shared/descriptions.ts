@@ -14,9 +14,9 @@ export interface BinaryPropertyFieldOptions {
 }
 
 /**
- * The "Binary Property" field that every operation consuming a PDF exposes
- * (PRD common-params requirement). Defaults to n8n's usual `data`/`binaryPropertyName`
- * convention (matches core nodes such as "Extract From File").
+ * The "Binary Property" field that every operation consuming a PDF exposes.
+ * Defaults to n8n's usual `data`/`binaryPropertyName` convention (matches
+ * core nodes such as "Extract From File").
  */
 export function binaryPropertyField(
 	resource: string,
@@ -37,7 +37,7 @@ export function binaryPropertyField(
 
 /**
  * Page-range parameter shared by Split / Extract Pages / Rotate / Delete
- * Pages (PRD F2): an expression-friendly string like `1-3,7,9-`.
+ * Pages: an expression-friendly string like `1-3,7,9-`.
  */
 export function pageRangeField(
 	resource: string,
@@ -60,8 +60,7 @@ export function pageRangeField(
 
 /**
  * The "Options" collection every binary-producing operation gets, with
- * "Output Binary Property" and "Output File Name" (PRD common-params
- * requirement).
+ * "Output Binary Property" and "Output File Name".
  */
 export function outputOptionsField(
 	resource: string,

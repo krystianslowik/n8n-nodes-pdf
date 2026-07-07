@@ -1,5 +1,5 @@
 /**
- * Unit tests for `nodes/PdfToolkit/shared/markdown.ts` (PRD F9). Loaded
+ * Unit tests for `nodes/PdfToolkit/shared/markdown.ts`. Loaded
  * directly via `tests/util/load-ts.mjs` (esbuild transpile, no full node
  * build required) — this module has no pdf-lib dependency to exercise for
  * real (see `tests/util/load-ts.mjs`'s doc comment for that boundary), only

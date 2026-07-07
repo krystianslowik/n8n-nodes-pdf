@@ -43,7 +43,8 @@ const extractOperations: INodeProperties = {
 		},
 	],
 	// 'metadata' rather than 'text': Extract > Text is a documented stub
-	// (spike/FINDINGS.md Q4) and the default operation must work zero-config.
+	// (needs pdfjs-dist, currently unavailable — see README's Limits section)
+	// and the default operation must work zero-config.
 	default: 'metadata',
 };
 

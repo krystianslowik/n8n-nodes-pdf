@@ -89,10 +89,8 @@ interface ExtractedImageInfo {
 	height: number;
 }
 
-// Implemented with pdf-lib's raw object model — no pdfjs-dist needed (see
-// spike/FINDINGS.md "Q4 — pdfjs-dist bundling" for why Extract > Text could
-// not be bundled within the scanner/no-filesystem/no-dynamic-import
-// constraints; this op never needed pdfjs-dist in the first place, since
+// Implemented with pdf-lib's raw object model — no pdfjs-dist needed (unlike
+// Extract > Text, this op never needed pdfjs-dist in the first place, since
 // pdf-lib already exposes the raw XObject dictionary tree this needs). Walks
 // every page's `/Resources /XObject` dictionary, collects each
 // `/Subtype /Image` stream exactly once (by indirect reference, so an image

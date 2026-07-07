@@ -1,7 +1,7 @@
 /**
  * Extract > Metadata: reads title/author/subject/keywords/creator/producer/
  * creation+modification dates from a PDF's Info dictionary via pdf-lib
- * (PRD F8 read half — see the module doc comment in
+ * (read-only — see the module doc comment in
  * `nodes/PdfToolkit/resources/extract/metadata.ts` for why write/set
  * metadata isn't implemented: no such operation is scaffolded in the UI).
  */

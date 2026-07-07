@@ -2,9 +2,8 @@ import type { INode } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
 /**
- * One comma-separated token of a page-range expression (PRD F2, e.g.
- * "1-3,7,9-"), resolved to 0-indexed page numbers against a real document's
- * page count.
+ * One comma-separated token of a page-range expression (e.g. "1-3,7,9-"),
+ * resolved to 0-indexed page numbers against a real document's page count.
  */
 export interface PageRangeGroup {
 	/** The original token text, e.g. "1-3", "7", or "9-". */
@@ -26,17 +25,16 @@ function fail(node: INode, itemIndex: number | undefined, message: string): neve
 }
 
 /**
- * Parses an expression-friendly page-range string (PRD F2) into one group
- * PER comma-separated token, each resolved to 0-indexed page numbers. "9-"
+ * Parses an expression-friendly page-range string into one group PER
+ * comma-separated token, each resolved to 0-indexed page numbers. "9-"
  * is open-ended (9 through the document's last page). Input page numbers
  * are 1-indexed and validated against `pageCount` — the source document's
  * REAL page count, not a guess — so malformed or out-of-range tokens throw a
  * `NodeOperationError` naming the bad token, the full expression, and the
- * document's actual page count (PRD UX: "Errors name the failing page/
- * field, not library stack traces").
+ * document's actual page count.
  *
- * Document > Split emits one output item PER GROUP this returns (PRD
- * batch-awareness: "split 1 → N items"). Extract Pages / Rotate / Delete
+ * Document > Split emits one output item PER GROUP this returns
+ * (batch-aware: splits 1 → N items). Extract Pages / Rotate / Delete
  * Pages instead flatten every group into a single selection — see
  * `parsePageRanges` below, which most callers should use directly.
  */

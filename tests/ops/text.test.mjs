@@ -1,11 +1,10 @@
 /**
- * Extract > Text: pdfjs-dist (the library this op would need) was genuinely
- * attempted and rejected for this package (see spike/FINDINGS.md
- * "Q4 — pdfjs-dist bundling"). This test asserts the thrown error explains WHY
- * (names the blocking engine and points at the evaluation), the same
- * error-quality bar the Secure stubs already meet, not just a bare
- * "not implemented yet" — regression test for the audit finding that this
- * stub used the generic `throwNotImplemented` instead of
+ * Extract > Text: pdfjs-dist (the library this op would need) can't
+ * currently be bundled scanner-clean for this package. This test asserts
+ * the thrown error explains WHY (names the blocking engine and points at
+ * the README), the same error-quality bar the Secure stubs already meet,
+ * not just a bare "not implemented yet" — regression test for this stub
+ * having used the generic `throwNotImplemented` instead of
  * `throwEngineUnavailable`.
  */
 import assert from 'node:assert/strict';
@@ -45,8 +44,8 @@ export const tests = [
 						`expected message to name the blocking engine (pdfjs-dist), got: ${error.message}`,
 					);
 					assert.ok(
-						/FINDINGS\.md/.test(error.message),
-						`expected message to point at the written-up evaluation, got: ${error.message}`,
+						/Limits section/i.test(error.message),
+						`expected message to point at the README's Limits section, got: ${error.message}`,
 					);
 					assert.equal(error.context?.itemIndex, 0, 'expected the error to carry itemIndex for continueOnFail()');
 					return true;

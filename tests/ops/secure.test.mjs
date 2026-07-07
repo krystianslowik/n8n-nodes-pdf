@@ -1,12 +1,11 @@
 /**
  * Secure > Encrypt / Decrypt / Set Permissions: pdf-lib has no
- * standard-security-handler encryption support, and the evaluated qpdf-wasm
- * engines couldn't be bundled scanner-clean for this package (see
- * spike/FINDINGS.md "Q6 — qpdf-wasm eval"). These three operations remain
- * honestly-deferred stubs — this test asserts the error thrown explains WHY
- * (names the blocking engine and points at the evaluation), not just "not
- * implemented yet", and still carries `itemIndex` so `continueOnFail()`
- * keeps working.
+ * standard-security-handler encryption support, and the available qpdf-wasm
+ * engines can't be bundled scanner-clean for this package. These three
+ * operations remain deferred stubs — this test asserts the error thrown
+ * explains WHY (names the blocking engine and points at the README), not
+ * just "not implemented yet", and still carries `itemIndex` so
+ * `continueOnFail()` keeps working.
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -40,8 +39,8 @@ function assertEngineUnavailable(error, operationLabel) {
 	);
 	assert.ok(/qpdf/i.test(error.message), `expected message to name the blocking engine (qpdf), got: ${error.message}`);
 	assert.ok(
-		/FINDINGS\.md/.test(error.message),
-		`expected message to point at the written-up evaluation, got: ${error.message}`,
+		/Limits section/i.test(error.message),
+		`expected message to point at the README's Limits section, got: ${error.message}`,
 	);
 	assert.equal(error.context?.itemIndex, 0, 'expected the error to carry itemIndex for continueOnFail()');
 	return true;

@@ -10,8 +10,8 @@
  * `shared/pageRanges.ts` in isolation, without needing a full node build —
  * useful because `scripts/esbuild-bundle.mjs` PRUNES the individually
  * tsc-compiled `dist/nodes/PdfToolkit/shared/**` output after bundling (it's
- * dead weight post-bundle — see spike/FINDINGS.md Q2), so there is no
- * standalone compiled artifact for a shared module to require after a full
+ * dead weight post-bundle), so there is no standalone compiled artifact for a
+ * shared module to require after a full
  * `npm run build`. Only usable for modules with no third-party bundled-lib
  * imports (pageRanges.ts has none — just `n8n-workflow`, which esbuild's
  * `bundle: false` here leaves as a plain `require()` that Node resolves

@@ -1,25 +1,23 @@
 /**
  * Shared pdf-lib-based document renderer for the Generate resource (From
- * Template / From Markdown), used AFTER a genuine bundling attempt at
- * `pdfmake` (the PRD's originally-specified engine for this resource) found
- * it architecturally incompatible with this package's scanner-clean /
- * no-filesystem constraints — see spike/FINDINGS.md "Q5 — pdfmake bundling"
- * for the full write-up (pdfkit's built-in standard-14 fonts read AFM metric
- * files off disk via `fs.readFileSync(__dirname + ...)`, and both the
- * Node/pdfkit path and the browser bundle path pull in dozens of
- * `@n8n/community-nodes/no-restricted-globals` violations from `fontkit`/
- * `linebreak`/`js-md5`/the webpack browser build itself — not one isolated,
- * legitimately-shimmable call site the way pdf-lib's single `setTimeout` was,
- * see spike/FINDINGS.md Q2).
+ * Template / From Markdown). `pdfmake`, the engine that would normally cover
+ * this kind of layout, is architecturally incompatible with this package's
+ * scanner-clean / no-filesystem constraints: pdfkit's built-in standard-14
+ * fonts read AFM metric files off disk via `fs.readFileSync(__dirname +
+ * ...)`, and both the Node/pdfkit path and the browser bundle path pull in
+ * dozens of `@n8n/community-nodes/no-restricted-globals` violations from
+ * `fontkit`/`linebreak`/`js-md5`/the webpack browser build itself — not one
+ * isolated, legitimately-shimmable call site the way pdf-lib's single
+ * `setTimeout` call is (see `scripts/shims/yield.js`).
  *
  * This is the documented v0 fallback: a deliberately small, pdf-lib-only
- * layout engine covering the block types PRD F3/F9 actually ask for (text,
+ * layout engine covering the block types Generate actually asks for (text,
  * headings, lists, simple tables, code blocks, images, headers/footers with
  * page numbers) — NOT a general-purpose document-layout engine. Known
  * boundaries (documented here rather than silently glossed over):
  * - Only the pdf-lib standard-14 fonts are available (Helvetica/Courier
- *   variants) — no custom/embedded font support (PRD F3's "custom font via
- *   binary input" is deferred with a clear error, see `fromTemplate.ts`).
+ *   variants) — no custom/embedded font support (a custom font via binary
+ *   input is deferred with a clear error, see `fromTemplate.ts`).
  * - No nested lists, no cell-spanning tables, no floated/inline images.
  * - Code blocks are drawn line-for-line, unwrapped (preserves whitespace
  *   fidelity; a line wider than the page simply overflows the margin).

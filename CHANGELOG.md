@@ -12,40 +12,37 @@ operations, Generate's 3, Form's 2, Stamp's 4, and Extract's Metadata/
 Embedded Images/Page Count), backed by 89 tests in `tests/` that drive the
 actual built `dist/` artifact through a shared mocked `IExecuteFunctions`.
 The remaining 4 (Extract > Text, and Secure's Encrypt/Decrypt/Set
-Permissions) stay stubs — each was genuinely investigated (a required
-engine, `pdfjs-dist` or `qpdf-wasm`, was evaluated for scanner-clean
-bundling and found architecturally incompatible with this package's
-no-filesystem/no-restricted-globals constraints; see `spike/FINDINGS.md`
-Q4/Q6) and each now throws a `NodeOperationError` naming the specific
+Permissions) stay stubs — each depends on an engine (`pdfjs-dist` or
+`qpdf-wasm`) that cannot currently be bundled scanner-clean for this
+package, and each now throws a `NodeOperationError` naming the specific
 blocker instead of a generic "not implemented" message. `npm run build`,
 `npm run lint` (full n8n Cloud config, `n8n.strict: true`), and
-`spike/drive-analyze.mjs` (the scanner's own `analyzePackage()`) all stay
-green throughout — zero runtime dependencies, two justified
-`eslint-disable-next-line` suppressions (both on the bundled-away `pdf-lib`
-import line, see below). See `VERIFICATION.md` for the full honest
-submission dossier.
+`npm run scan` (the scanner's own `analyzePackage()`, run locally against
+the packed tarball) all stay green throughout — zero runtime dependencies,
+two justified `eslint-disable-next-line` suppressions (both on the
+bundled-away `pdf-lib` import line, see below).
 
 ### Changed
 
 - Restored the full n8n Cloud lint config (`eslint.config.mjs` back to
   `@n8n/node-cli/eslint`'s `config`, `package.json`'s `n8n.strict` back to
-  `true`) after a prior spike pass had disabled cloud support package-wide
-  to silence a lint error. The two `no-restricted-imports` hits this
+  `true`) after an earlier pass had disabled cloud support package-wide to
+  silence a lint error. The two `no-restricted-imports` hits this
   re-enables (the `pdf-lib` import lines in `merge.ts`/`pageCount.ts`, which
   never ship — esbuild bundles them away) are now suppressed individually
   with a narrow `eslint-disable-next-line` and a justification comment
-  instead. See `spike/FINDINGS.md` Q2 "Round 2" for the full rationale.
+  instead.
 - The esbuild bundle step (`scripts/esbuild-bundle.mjs`) now injects
   `scripts/shims/yield.js`, which redirects pdf-lib's internal
   `waitForTick()` (used on every `PDFDocument.load()`/`.save()` call) from
   the banned `setTimeout` global to `queueMicrotask`. This closes the last
   `@n8n/community-nodes/no-restricted-globals` violation the scanner
   reported against the bundled dist — `analyzePackage()` now reports 0
-  errors (down from 1) — but it is an honest, documented tradeoff, not a
-  full fix: `queueMicrotask` doesn't yield to the timer/IO phase the way
+  errors (down from 1) — but it is a documented tradeoff, not a full fix:
+  `queueMicrotask` doesn't yield to the timer/IO phase the way
   `setTimeout`/`setImmediate` would (both are also banned globals). See
-  `scripts/shims/yield.js` and `spike/FINDINGS.md` Q2 for the full
-  event-loop-starvation tradeoff writeup (PRD R2).
+  `scripts/shims/yield.js` for the full event-loop-starvation tradeoff
+  writeup.
 
 ### Added
 
@@ -53,7 +50,7 @@ submission dossier.
   implemented for real with `pdf-lib`, replacing their stubs (Document >
   Merge and Extract > Page Count were already real). Split parses its
   `Page Ranges` expression and emits **one output item per comma-separated
-  range** (PRD batch-awareness); Extract Pages flattens the same expression
+  range** (batch-aware); Extract Pages flattens the same expression
   into a single, deduplicated selection for one output PDF; Rotate honors
   "all" or a page-range selection and *adds* the chosen angle to each page's
   existing rotation; Reorder validates its `New Order` expression as a
@@ -63,8 +60,8 @@ submission dossier.
   is centralized in a new, unit-tested `nodes/PdfToolkit/shared/pageRanges.ts`
   shared by all four range-consuming operations, and a new
   `nodes/PdfToolkit/shared/pdf.ts` centralizes the `pdf-lib` import (behind
-  the same `no-restricted-imports` suppression pattern as `merge.ts`), a PRD
-  R2 100MB binary-size guard, and pdf-lib parse-error wrapping so failures
+  the same `no-restricted-imports` suppression pattern as `merge.ts`), a
+  100MB binary-size guard, and pdf-lib parse-error wrapping so failures
   name the failing binary property/item instead of surfacing a raw pdf-lib
   stack trace.
 - `tests/run-all.mjs`: a lightweight test runner (discovers every
@@ -75,12 +72,12 @@ submission dossier.
   (valid/open-ended/overlapping/invalid/out-of-range cases) via an
   esbuild-on-the-fly loader (`tests/util/load-ts.mjs`). Run with
   `npm run build && node tests/run-all.mjs`.
-- `spike/drive-analyze.mjs`: a committed repro script that npm-packs this
+- `scripts/scan-check.mjs`: a committed repro script that npm-packs this
   package, unpacks the tarball into a git-ignored temp dir, and runs the
   n8n community-node scanner's own `analyzePackage()` against it, printing
   every violation and exiting non-zero on any. Replaces an ad-hoc,
   previously-uncommitted script used for the same check. Run via
-  `npm run spike:analyze`.
+  `npm run scan`.
 - Form > Read Fields and Form > Fill Form are now implemented for real with
   `pdf-lib`. Read Fields maps `PDFDocument.getForm().getFields()` to
   name/type/current-value/options JSON, dispatching on each field's concrete
@@ -117,8 +114,8 @@ submission dossier.
 ### Fixed
 
 - `execute()` in `PdfToolkit.node.ts` now dispatches by item cardinality
-  instead of a single flat per-item loop, so it can actually support the
-  PRD's "Batch-aware: merge N items → 1; split 1 → N items" requirement:
+  instead of a single flat per-item loop, so it can actually support
+  batch-aware operations (merge N items → 1; split 1 → N items):
   Document > Merge is called once with every incoming item and produces one
   output item (many-to-one), and Document > Split is still called once per
   incoming item but may push zero or more output items (one-to-many).
@@ -132,8 +129,9 @@ submission dossier.
   that operation can emit any number of images per PDF.
 - Generate > From Images is now dispatched many-to-one (all incoming image
   items combined into one output PDF), matching its own description text
-  ("Images are added in input order") and PRD F7's pdfkit-node parity
-  requirement. It was previously wired itemwise, which would have produced N
+  ("Images are added in input order") and giving parity with
+  n8n-nodes-pdfkit's images→PDF operation. It was previously wired itemwise,
+  which would have produced N
   separate 1-page PDFs instead of one combined N-page PDF — the same bug
   class already fixed for Document > Merge above.
 
@@ -141,7 +139,7 @@ submission dossier.
 
 - Extract > Metadata is now implemented for real with `pdf-lib` (title,
   author, subject, keywords, creator, producer, creation/modification dates,
-  page count — PRD F8 read half). Loads with `updateMetadata: false`: pdf-lib's
+  page count). Loads with `updateMetadata: false`: pdf-lib's
   default (`true`) unconditionally overwrites `Producer`/`ModificationDate`
   with its own stamp on every `load()`, which would make a read-only
   metadata op report pdf-lib's values instead of the document's real ones
@@ -166,22 +164,19 @@ submission dossier.
   a `Buffer` with `byteOffset === 0` specifically to sidestep a pdf-lib
   `embedJpg()` bug where `new DataView(buf.buffer)` ignores a pooled Node
   `Buffer`'s `byteOffset` and misreads the JPEG header.
-- `spike/FINDINGS.md` gained a new "Q4 — pdfjs-dist bundling" section: a
-  genuine bundling attempt for Extract > Text found pdfjs-dist's Node
-  support model (worker/message-passing architecture requiring either a
-  runtime dynamic `import()` of a file on disk, or reimplementing its
-  internal, undocumented wire protocol; a `process`-global dependency for
-  environment detection with no legitimate, non-obfuscating way to satisfy
-  under `no-restricted-globals`/`no-restricted-imports`; a much larger
-  banned-global surface than pdf-lib's single `setTimeout` call, mostly from
-  unrelated bundled web-viewer UI code) architecturally incompatible with
-  this package's constraints. Extract > Text remains a stub (unchanged) —
-  see that section for the full analysis and the two follow-up directions
-  it did not have time to pursue.
+- Evaluated bundling `pdfjs-dist` for Extract > Text: its Node support model
+  (worker/message-passing architecture requiring either a runtime dynamic
+  `import()` of a file on disk, or reimplementing its internal, undocumented
+  wire protocol; a `process`-global dependency for environment detection; a
+  much larger banned-global surface than pdf-lib's single `setTimeout` call,
+  mostly from unrelated bundled web-viewer UI code) is architecturally
+  incompatible with this package's constraints. Extract > Text remains a
+  stub (unchanged).
 
 ## 0.1.0 - 2026-07-06
 
 ### Added
 
 - Initial scaffold: full node UI (6 resources, 22 operations) and `execute()`
-  routing; all operation bodies are stubs pending PRD open question O1.
+  routing; all operation bodies are stubs pending a decision on how to bundle
+  the underlying PDF libraries scanner-clean.

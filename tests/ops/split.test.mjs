@@ -1,5 +1,5 @@
 /**
- * Document > Split (PRD F2): one output item per comma-separated range.
+ * Document > Split: one output item per comma-separated range.
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';

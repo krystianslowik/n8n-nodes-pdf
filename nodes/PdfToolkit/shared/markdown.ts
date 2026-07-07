@@ -1,9 +1,9 @@
 /**
  * Hand-written, line-based Markdown -> `DocBlock[]` parser for Generate >
- * From Markdown (PRD F9: "headings, lists, tables, code blocks"). Written by
- * hand (no `marked`/`markdown-it`/etc. dependency, per this group's task
- * scope: "keep the dep surface minimal") — this is deliberately a small
- * subset of CommonMark/GFM, not a spec-compliant parser. Only `import type`s
+ * From Markdown (headings, lists, tables, code blocks). Written by hand (no
+ * `marked`/`markdown-it`/etc. dependency, to keep the runtime dependency
+ * surface minimal) — this is deliberately a small subset of CommonMark/GFM,
+ * not a spec-compliant parser. Only `import type`s
  * from `./docRenderer` (erased at compile/bundle time), so this module has
  * NO runtime dependency on pdf-lib and can be unit-tested directly (see
  * `tests/shared/markdown.test.mjs`).

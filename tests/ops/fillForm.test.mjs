@@ -1,6 +1,6 @@
 /**
  * Form > Fill Form: fills a PDF form from JSON values, with optional
- * flatten (PRD F4). Round-trips through Form > Read Fields to assert real
+ * flatten. Round-trips through Form > Read Fields to assert real
  * semantics (not just "no throw") and checks that flattening removes the
  * fields while the visible content (the flattened appearance streams)
  * survives — asserted honestly via `form.getFields()` becoming empty, since

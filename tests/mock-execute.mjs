@@ -1,8 +1,6 @@
 /**
  * Shared minimal `IExecuteFunctions` mock used by every `tests/ops/*.test.mjs`
- * file. Extracted from `spike/harness.mjs`'s original ad-hoc mock (kept
- * there, untouched, as historical spike evidence) so op tests don't each
- * reimplement it.
+ * file, so op tests don't each reimplement it.
  *
  * This mock implements only what `PdfToolkit.node.ts`'s `execute()` and the
  * per-operation functions under `nodes/PdfToolkit/resources/**` actually
@@ -13,9 +11,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 // n8n-workflow's published ESM build has a broken internal import
-// (`logger-proxy` missing its extension), so — like `spike/harness.mjs` —
-// every test file resolves it via `require()` (the CJS build), not a
-// top-level `import`.
+// (`logger-proxy` missing its extension), so every test file resolves it via
+// `require()` (the CJS build), not a top-level `import`.
 const require = createRequire(import.meta.url);
 const { NodeOperationError } = require('n8n-workflow');
 

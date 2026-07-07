@@ -74,8 +74,8 @@ const binaryInputParamMaps: Record<string, BinaryInputParamMap> = {
 };
 
 // Many-to-one (e.g. Document > Merge: N incoming items → 1 output item, or
-// Generate > From Images: N incoming image items → 1 combined multi-page PDF
-// — PRD F7) and one-to-many (e.g. Document > Split: 1 incoming item → N
+// Generate > From Images: N incoming image items → 1 combined multi-page
+// PDF) and one-to-many (e.g. Document > Split: 1 incoming item → N
 // output items) operations. Every resource is wired here so a future
 // resource can register one without touching `execute()` again. See
 // `shared/types.ts` for why itemwise per-item calls can't express either
@@ -139,8 +139,8 @@ export class PdfToolkit implements INodeType {
 
 		const manyToOneExecute = manyToOneExecuteMaps[resource]?.[operation];
 		if (manyToOneExecute) {
-			// Many-to-one cardinality (e.g. Document > Merge — PRD: "Batch-aware:
-			// ... merge N items → 1"): call once for every incoming item, not
+			// Many-to-one cardinality (e.g. Document > Merge: batch-aware,
+			// merges N items → 1): call once for every incoming item, not
 			// once per item. There's no single failing item to blame, so on
 			// error we tag every input item as the `pairedItem` source instead of
 			// a single `itemIndex`.
@@ -181,8 +181,8 @@ export class PdfToolkit implements INodeType {
 
 				const oneToManyExecute = oneToManyExecuteMaps[resource]?.[operation];
 				if (oneToManyExecute) {
-					// One-to-many cardinality (e.g. Document > Split — PRD:
-					// "Batch-aware: ... split 1 → N items"): still one input item
+					// One-to-many cardinality (e.g. Document > Split: batch-aware,
+					// splits 1 → N items): still one input item
 					// per call, but push every output item the call returns instead
 					// of assuming exactly one.
 					returnData.push(...(await oneToManyExecute.call(this, itemIndex)));

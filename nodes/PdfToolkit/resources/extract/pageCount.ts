@@ -7,10 +7,9 @@ export const extractPageCountDescription: INodeProperties[] = [
 	binaryPropertyField('extract', 'pageCount'),
 ];
 
-// Implemented with pdf-lib (PDFDocument.getPageCount()). PRD F8/Tier1
-// originally scoped this to pdfjs-dist, but for the spike (and given pdf-lib
-// is already bundled for Document/Form/Stamp) reusing pdf-lib here avoids
-// bundling a second PDF-parsing library for a single number.
+// Implemented with pdf-lib (PDFDocument.getPageCount()). Reusing pdf-lib
+// here (already bundled for Document/Form/Stamp) avoids bundling a second
+// PDF-parsing library (pdfjs-dist) for a single number.
 export async function extractPageCountExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,

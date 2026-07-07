@@ -2,8 +2,8 @@
  * Loads the REAL, BUILT dist artifact (`dist/nodes/PdfToolkit/PdfToolkit.node.js`
  * — the exact esbuild-bundled output `npm run build` produces), not the TS
  * source. Every `tests/ops/*.test.mjs` file drives this, so tests exercise
- * the exact same artifact that ships and that `spike/drive-analyze.mjs`
- * scans (see `spike/harness.mjs`, which this generalizes into shared infra).
+ * the exact same artifact that ships and that `scripts/scan-check.mjs`
+ * scans.
  *
  * Requires `npm run build` to have already run (`dist/` must exist) — run
  * via `tests/run-all.mjs`, or manually with `npm run build && node

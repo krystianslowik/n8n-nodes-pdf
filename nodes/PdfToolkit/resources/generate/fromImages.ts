@@ -8,7 +8,7 @@ const showOnlyForFromImages = { resource: ['generate'], operation: ['fromImages'
 
 /**
  * The drop-in replacement for `n8n-nodes-pdfkit`'s entire feature set
- * (images -> PDF, PRD F7 / goal 4). See the README migration note.
+ * (images -> PDF). See the README migration note.
  */
 export const fromImagesDescription: INodeProperties[] = [
 	binaryPropertyField('generate', 'fromImages', {
@@ -34,21 +34,20 @@ export const fromImagesDescription: INodeProperties[] = [
 // A4 and US Letter in PDF points (1pt = 1/72in) — pdf-lib's native unit.
 const A4_SIZE: [number, number] = [595.28, 841.89];
 const LETTER_SIZE: [number, number] = [612, 792];
-// Margin used for the A4/Letter "fit inside the page" modes (PRD F7), so the
+// Margin used for the A4/Letter "fit inside the page" modes, so the
 // image never touches the page edge. "Fit to Image" mode uses no margin (the
 // page IS the image, matching n8n-nodes-pdfkit's own image-per-page output).
 const FIXED_PAGE_MARGIN = 36;
 
-// Implemented with pdf-lib directly (PRD Generate engine table: "pdfmake;
-// pdf-lib acceptable for images" — see spike/FINDINGS.md "Q5 — pdfmake
-// bundling" for why pdfmake itself could not be bundled scanner-clean, which
-// doesn't matter for this op since it never needed pdfmake). One page per
-// incoming image (one binary field, read across every incoming item, in
-// input order — the same "all incoming items" convention Document > Merge
-// uses), via `embedPng`/`embedJpg` (sniffed by signature, shared
-// `embedImageAuto` helper) + `page.drawImage()`.
+// Implemented with pdf-lib directly — this op only ever needed pdf-lib's
+// image-embedding support, not pdfmake (the layout engine Generate > From
+// Template/From Markdown use). One page per incoming image (one binary
+// field, read across every incoming item, in input order — the same "all
+// incoming items" convention Document > Merge uses), via `embedPng`/
+// `embedJpg` (sniffed by signature, shared `embedImageAuto` helper) +
+// `page.drawImage()`.
 //
-// Many-to-one cardinality (PRD F7 / README migration note: "Images→PDF, the
+// Many-to-one cardinality (see the README migration note: "Images→PDF, the
 // n8n-nodes-pdfkit parity op" — pdfkit-node itself combines every incoming
 // image into ONE multi-page PDF). This mirrors Document > Merge: called ONCE
 // per node execution with every incoming item, not once per item — see

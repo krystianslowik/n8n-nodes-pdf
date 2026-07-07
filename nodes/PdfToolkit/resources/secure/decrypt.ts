@@ -23,10 +23,8 @@ export const decryptDescription: INodeProperties[] = [
 // pdf-lib CAN load password-encrypted PDFs' unencrypted structure in some
 // cases, but it has no standard-security-handler DECRYPTION implementation
 // (no code path takes a password and produces decrypted output) — same root
-// cause as encrypt.ts. The qpdf-wasm evaluation in spike/FINDINGS.md
-// "Q6 — qpdf-wasm eval" covers this operation too (qpdf's CLI handles both
-// directions; the blocker is the same Node-bootstrap globals/fs surface, not
-// something specific to decrypt).
+// cause as encrypt.ts. The qpdf/WASM blocker is the same for this operation:
+// the available builds reference banned Node globals/fs at runtime.
 export async function decryptExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
@@ -34,9 +32,9 @@ export async function decryptExecute(
 	return throwEngineUnavailable.call(
 		this,
 		'Decrypt',
-		'PDF decryption needs a WASM engine (qpdf), and the evaluated qpdf-wasm builds cannot ' +
-			'yet be bundled scanner-clean for this package (no filesystem/env access at runtime) — ' +
-			'see spike/FINDINGS.md "Q6 — qpdf-wasm eval" for the full evaluation and viable future paths',
+		'PDF decryption needs a WASM engine (qpdf), and the available qpdf-wasm builds cannot ' +
+			'yet be bundled scanner-clean for this package (no filesystem/env access at runtime). ' +
+			"See the README's Limits section.",
 		itemIndex,
 	);
 }

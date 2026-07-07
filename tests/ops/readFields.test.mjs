@@ -1,8 +1,8 @@
 /**
  * Form > Read Fields: reads a PDF form's fields into JSON (name, type,
- * current value, options where applicable — PRD F4). The test PDF form is
+ * current value, options where applicable). The test PDF form is
  * created with pdf-lib's own form API (`form.createTextField`,
- * `form.createCheckBox`, `form.createRadioGroup`), per the group spec.
+ * `form.createCheckBox`, `form.createRadioGroup`).
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';

@@ -2,22 +2,20 @@ import type { IExecuteFunctions } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
 /**
- * Historical/fallback stub-error helper. Originally EVERY Tier 1 operation in
- * this scaffold threw this (before any real pdf-lib logic was wired in — see
- * PRD open question O1). As of this branch, 18/22 Tier 1 operations are
- * implemented for real, and the remaining 4 (Extract > Text, Secure >
- * Encrypt/Decrypt/Set Permissions) each have a genuine, investigated
- * engineering blocker documented in `spike/FINDINGS.md` (Q4/Q6) and use
- * {@link throwEngineUnavailable} instead, which explains WHY rather than just
- * "not implemented yet". This helper currently has no callers, but is kept as
- * the honest fallback for any future operation that's simply not started yet
- * (as opposed to blocked on an investigated bundling constraint) — do not
- * reach for `throwEngineUnavailable` for a plain "not built yet" stub, since
- * that would misrepresent an un-investigated gap as a researched blocker.
+ * Fallback stub-error helper for an operation that's simply not built yet.
+ * 18 of 22 Tier 1 operations are implemented for real; the remaining 4
+ * (Extract > Text, Secure > Encrypt/Decrypt/Set Permissions) each have a
+ * specific engine blocker and use {@link throwEngineUnavailable} instead,
+ * which explains WHY rather than just "not implemented yet". This helper
+ * currently has no callers, but is kept for any future operation that's
+ * simply not started yet (as opposed to blocked on a known bundling
+ * constraint) — do not reach for `throwEngineUnavailable` for a plain "not
+ * built yet" stub, since that would misrepresent an un-investigated gap as a
+ * researched blocker.
  *
  * Both helpers guarantee:
  * - the error always names the failing operation (never a library stack
- *   trace, per the PRD's UX principles), and
+ *   trace), and
  * - the error always carries `itemIndex` so it can be handled by
  *   `continueOnFail()` in `PdfToolkit.node.ts`.
  *
@@ -39,14 +37,11 @@ export function throwNotImplemented(
 
 /**
  * Same contract as {@link throwNotImplemented}, but for stubs where the
- * blocker isn't "not built yet" — it's a genuine, investigated engineering
- * boundary (a required engine/library was evaluated and found impossible to
- * bundle scanner-clean, per the PRD's UX principle "errors name the failing
- * page/field, not library stack traces": a bare "not implemented yet" is
- * misleading here because it implies the fix is just "write the code").
- * `reason` should name the blocking engine and point at the written-up
- * evaluation (`spike/FINDINGS.md`) so the message is actionable, not just
- * apologetic.
+ * blocker isn't "not built yet" — a required engine/library cannot be
+ * bundled scanner-clean for this package, so a bare "not implemented yet" is
+ * misleading here because it implies the fix is just "write the code".
+ * `reason` should name the blocking engine and point at the README's Limits
+ * section so the message is actionable, not just apologetic.
  */
 export function throwEngineUnavailable(
 	this: IExecuteFunctions,

@@ -21,27 +21,20 @@ export const extractTextDescription: INodeProperties[] = [
 				type: 'boolean',
 				default: false,
 				description:
-					'Whether to include per-text-item bounding-box coordinates alongside the extracted text (PRD F5)',
+					'Whether to include per-text-item bounding-box coordinates alongside the extracted text',
 			},
 		],
 	},
 ];
 
-// pdfjs-dist (the library this op needs for real text extraction: getDocument
-// + page.getTextContent per page, in text-only mode without canvas) was
-// genuinely attempted and rejected for THIS package — not an oversight to
-// "just wire up". Its Node.js support model is architecturally incompatible
-// with this package's combined constraints (scanner-clean static analysis,
-// no filesystem access at runtime, no unbundled dynamic `import()`): a much
-// larger banned-globals surface than pdf-lib's single `setTimeout` call
-// (Q2), and a hard, non-substitutable dependency on the real Node `process`
-// global for environment detection that can't legally be obtained under
-// either `no-restricted-globals` or `no-restricted-imports`. See
-// spike/FINDINGS.md "Q4 — pdfjs-dist bundling" for the full evaluation
-// (Findings 1-3) and the two productive future directions it identifies (a
-// purpose-built pure-JS text-extraction routine against pdf-lib's own object
-// model, or revisiting once pdfjs-dist ships an official no-worker Node
-// entry point).
+// pdfjs-dist (the library this op needs for real text extraction:
+// getDocument + page.getTextContent per page, in text-only mode without
+// canvas) has a Node.js support model that is architecturally incompatible
+// with this package's constraints: a much larger banned-globals surface than
+// pdf-lib's single `setTimeout` call, and a hard, non-substitutable
+// dependency on the real Node `process` global for environment detection
+// that can't legally be obtained under `no-restricted-globals` or
+// `no-restricted-imports`.
 export async function extractTextExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
@@ -51,8 +44,8 @@ export async function extractTextExecute(
 		'Text',
 		'text extraction needs pdfjs-dist, and its Node.js support model cannot yet be bundled ' +
 			'scanner-clean for this package (banned globals in its parser core, and a required ' +
-			'`process` environment check that cannot legally be obtained) — see spike/FINDINGS.md ' +
-			'"Q4 — pdfjs-dist bundling" for the full evaluation and viable future paths',
+			"`process` environment check that cannot legally be obtained). See the README's Limits " +
+			'section.',
 		itemIndex,
 	);
 }

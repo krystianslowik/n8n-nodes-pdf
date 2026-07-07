@@ -1,6 +1,6 @@
 /**
  * Stamp > Image Watermark: embeds a PNG/JPG binary onto every page (or a
- * page range), scaled/positioned/with opacity (PRD F6). Content-stream
+ * page range), scaled/positioned/with opacity. Content-stream
  * growth is the honest assertion available (see `tests/pdf-content.mjs`);
  * additionally, the page's `/XObject` resource dict must gain an embedded
  * image entry, which IS a structural, unambiguous "an image was really
@@ -83,11 +83,11 @@ export const tests = [
 		},
 	},
 	{
-		// Regression test for the audit finding that the watermark IMAGE
-		// binary (unlike every other binary read in the codebase) skipped the
-		// shared `assertBinarySizeWithinLimit` guard, so an oversized image
-		// buffer went straight into `embedImageAuto`/pdf-lib's PNG decoder
-		// instead of being refused up front with the PRD R2 100MB message.
+		// Regression test: the watermark IMAGE binary (unlike every other
+		// binary read in the codebase) used to skip the shared
+		// `assertBinarySizeWithinLimit` guard, so an oversized image buffer
+		// went straight into `embedImageAuto`/pdf-lib's PNG decoder instead of
+		// being refused up front with the 100MB-limit error message.
 		name:
 			'a watermark image over the 100MB limit is refused with a clear error naming the image binary property, not passed to the PNG decoder',
 		fn: async () => {

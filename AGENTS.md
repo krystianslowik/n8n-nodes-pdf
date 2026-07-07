@@ -15,11 +15,9 @@ version. In that case there are rules that the node needs to follow in order to
 be approved.
 
 This specific package, `n8n-nodes-pdf` ("PDF Toolkit"), is a **zero-external-
-service utility node**: every operation runs in-process (pdf-lib / pdfmake /
-pdfjs-dist, once the bundling strategy in PRD open question O1 is resolved) and
-never calls a third-party API. See `/Users/slowik/Desktop/n8n/projects/nodes/prd/pdf-node-prd.md`
-for the full product spec — it overrides everything else in this repo on
-*what* to build.
+service utility node**: every operation runs in-process (currently pdf-lib;
+pdfmake and pdfjs-dist were evaluated but could not be bundled scanner-clean,
+see below) and never calls a third-party API.
 
 ## Important notes
 - Follow the **rules and guidelines in this document and the linked docs
@@ -27,13 +25,18 @@ for the full product spec — it overrides everything else in this repo on
 - All code blocks in these docs are **illustrative and incomplete**.
   They **MUST NOT** be copied verbatim or assumed to be the final desired code.
 - 18 of 22 Tier-1 operations are **real** (pdf-lib, esbuild-bundled as a
-  devDependency into `dist/` — see `spike/FINDINGS.md` for the bundling
-  architecture and the `setTimeout` shim). Four remain investigated stubs
-  with documented blockers: Extract > Text (pdfjs-dist, FINDINGS Q4) and
-  the Secure resource (qpdf-wasm, FINDINGS Q6). Never add a runtime
+  devDependency into `dist/` by `scripts/esbuild-bundle.mjs`, which also
+  injects `scripts/shims/yield.js` to keep pdf-lib's internal `setTimeout`
+  call scanner-legal). Four remain unavailable stubs with a one-line reason
+  each: Extract > Text needs pdfjs-dist, whose Node.js support model relies
+  on banned globals and a `process` environment check; the Secure resource
+  (Encrypt, Decrypt, Set Permissions) needs a qpdf/WASM engine, and the
+  available qpdf-wasm builds reference banned Node globals (`process`,
+  `__dirname`) and require `fs`/`path` at runtime. Never add a runtime
   `dependencies` entry — new libraries go in `devDependencies` and get
   bundled via `scripts/esbuild-bundle.mjs`; the scanner check
-  (`spike/drive-analyze.mjs`) must stay at 0 errors.
+  (`npm run scan`, which runs `scripts/scan-check.mjs`) must stay at 0
+  errors.
 - Never output generic `Wordpress`/`Example`-style filler — everything here
   is PDF-domain (Document/Generate/Form/Stamp/Extract/Secure resources).
 
@@ -59,6 +62,11 @@ There are two main folders in this project:
 │           ├── stamp/         # Text/Image Watermark, Page Numbers, Overlay PDF
 │           ├── extract/       # Text, Metadata, Embedded Images, Page Count
 │           └── secure/        # Encrypt, Decrypt, Set Permissions
+├── scripts/
+│   ├── esbuild-bundle.mjs # bundles pdf-lib into dist/ post-build (see above)
+│   ├── scan-check.mjs     # local stand-in for the scanner CLI, run via `npm run scan`
+│   └── shims/
+│       └── yield.js       # esbuild `inject` shim, see esbuild-bundle.mjs
 ├── package.json
 └── ...
 ```
@@ -107,10 +115,6 @@ Load these before working on the relevant area:
 | Starting a new task or planning      | `.agents/workflow.md`                                               |
 
 ## Additional resources
-- `/Users/slowik/Desktop/n8n/projects/nodes/prd/pdf-node-prd.md` — the PRD (source of truth for scope).
-- `/Users/slowik/Desktop/n8n/projects/nodes/docs/building-community-nodes.md`
-- `/Users/slowik/Desktop/n8n/projects/nodes/docs/starter-template-structure.md`
-- `/Users/slowik/Desktop/n8n/projects/nodes/docs/internal-notion-notes.md`
 - https://docs.n8n.io/integrations/community-nodes/build-community-nodes/
 - https://docs.n8n.io/integrations/creating-nodes/overview/
 - https://docs.n8n.io/integrations/creating-nodes/build/reference/

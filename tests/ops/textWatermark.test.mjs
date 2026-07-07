@@ -1,6 +1,6 @@
 /**
  * Stamp > Text Watermark: text, position, opacity, rotation, font size,
- * applied to all pages or a range (PRD F6).
+ * applied to all pages or a range.
  *
  * pdf-lib cannot extract rendered text (see `tests/pdf-content.mjs`), so
  * these tests assert two honest, structural things instead: (1) each

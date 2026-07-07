@@ -6,14 +6,14 @@
  * identifier resolves to inside the bundled output.
  *
  * ---------------------------------------------------------------------------
- * WHY THIS EXISTS (see spike/FINDINGS.md Q2 for the full write-up)
+ * WHY THIS EXISTS
  * ---------------------------------------------------------------------------
  * pdf-lib's own `cjs/utils/async.js` exports a `waitForTick()` helper that
  * every `PDFDocument.load()` / `.save()` call chain (PDFParser, PDFWriter,
  * PDFObjectStreamParser, PDFStreamWriter) calls internally, purely to yield
- * the event loop for one tick during CPU-heavy parse/write work — this is
- * exactly the behavior the PRD asks for under R2 ("operations are CPU-bound
- * and must yield — no event-loop starvation on task runners"):
+ * the event loop for one tick during CPU-heavy parse/write work — this
+ * matters because operations are CPU-bound and should yield rather than
+ * starve the event loop on task runners:
  *
  *   exports.waitForTick = function () {
  *     return new Promise(function (resolve) {
@@ -46,13 +46,14 @@
  * name (`setTimeout`, from this file's export) to resolve to it. After that
  * rewrite, `setTimeout` in the compiled bundle is no longer an unresolved
  * global — it's a local function declaration in the same file/scope — so
- * ESLint's scope-based check no longer matches it (verified locally: see
- * spike/FINDINGS.md Q2 "after" analyzePackage() run). This is a real change
- * to what the identifier binds to at runtime, not string obfuscation: pdf-lib
- * genuinely calls THIS function instead of the Node.js global.
+ * ESLint's scope-based check no longer matches it (verified locally with
+ * `npm run scan`, which runs a clean `analyzePackage()` pass). This is a
+ * real change to what the identifier binds to at runtime, not string
+ * obfuscation: pdf-lib genuinely calls THIS function instead of the Node.js
+ * global.
  *
  * ---------------------------------------------------------------------------
- * THE HONEST TRADEOFF — this is NOT a full fix (PRD R2)
+ * THE HONEST TRADEOFF — this is NOT a full fix
  * ---------------------------------------------------------------------------
  * `setImmediate` is ALSO on the banned-globals list above, so there is no
  * scanner-legal primitive left that truly yields to the timer/IO phase of
@@ -72,8 +73,8 @@
  *     never yield to them.
  * This is a real, narrower-than-intended event-loop-starvation risk versus
  * what pdf-lib's authors designed `waitForTick()` for, not a full
- * resolution of PRD R2 — see spike/FINDINGS.md Q2 for the complete tradeoff
- * write-up and the remaining gap to full verification.
+ * resolution of that concern — see the README's Limits section for the
+ * user-facing summary of this tradeoff.
  */
 export function setTimeout(fn) {
 	queueMicrotask(fn);

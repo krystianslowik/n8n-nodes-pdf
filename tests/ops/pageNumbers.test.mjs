@@ -1,6 +1,6 @@
 /**
- * Stamp > Page Numbers: adds a formatted page-number label to every page
- * (PRD F6). Page count must stay unchanged; every page's content stream
+ * Stamp > Page Numbers: adds a formatted page-number label to every page.
+ * Page count must stay unchanged; every page's content stream
  * must grow (a label was really drawn on it) — same honest content-stream
  * assertion as the watermark tests (`tests/pdf-content.mjs`), plus checking
  * the hex-encoded operand of each page's EXPECTED label text (so "page 2 of

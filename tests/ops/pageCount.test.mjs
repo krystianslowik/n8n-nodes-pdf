@@ -1,7 +1,5 @@
 /**
- * Extract > Page Count. Ports the third case from `spike/harness.mjs` (kept
- * there, untouched, as historical spike evidence) into the shared test
- * structure.
+ * Extract > Page Count.
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -35,11 +33,11 @@ export const tests = [
 		},
 	},
 	{
-		// Regression test for the audit finding that Page Count called raw
-		// `PDFDocument.load()` instead of the shared `loadPdfDocument` helper,
-		// so it had NO PRD R2 100MB guard: a >100MB buffer used to crash inside
-		// pdf-lib with an unrelated error ("Cannot read properties of undefined
-		// (reading 'Pages')") instead of a clear, property-naming error.
+		// Regression test: Page Count used to call raw `PDFDocument.load()`
+		// instead of the shared `loadPdfDocument` helper, so it had no 100MB
+		// size guard: a >100MB buffer used to crash inside pdf-lib with an
+		// unrelated error ("Cannot read properties of undefined (reading
+		// 'Pages')") instead of a clear, property-naming error.
 		name: 'a binary over the 100MB limit is refused with a clear error naming the property, not a raw pdf-lib crash',
 		fn: async () => {
 			const oversized = Buffer.alloc(100 * 1024 * 1024 + 1);

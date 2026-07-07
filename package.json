@@ -24,8 +24,7 @@
         "dev": "n8n-node dev",
         "lint": "n8n-node lint",
         "lint:fix": "n8n-node lint --fix",
-        "spike:harness": "node spike/harness.mjs",
-        "spike:analyze": "node spike/drive-analyze.mjs",
+        "scan": "node scripts/scan-check.mjs",
         "test": "npm run build && node tests/run-all.mjs",
         "release": "n8n-node release",
         "prepublishOnly": "n8n-node prerelease"

@@ -17,20 +17,18 @@ export const fromMarkdownDescription: INodeProperties[] = [
 		required: true,
 		displayOptions: { show: showOnlyForFromMarkdown },
 		description:
-			'Markdown source to render as a PDF (PRD F9). Supports headings (# .. ######), paragraphs with ' +
+			'Markdown source to render as a PDF. Supports headings (# .. ######), paragraphs with ' +
 			'**bold**/*italic*/`code` spans, bullet ("-") and numbered ("1.") lists, fenced (```) code blocks, ' +
 			'and GFM-style pipe tables. This is a small hand-written subset of Markdown, not a full ' +
 			'CommonMark implementation — see nodes/PdfToolkit/shared/markdown.ts for the exact supported ' +
-			'grammar. Rendered with the same pdf-lib-based layout engine as Generate > From Template (see ' +
-			'that operation\'s description for the pdfmake-bundling background).',
+			'grammar. Rendered with the same pdf-lib-based layout engine as Generate > From Template.',
 	},
 	outputOptionsField('generate', 'fromMarkdown', [], 'document.pdf'),
 ];
 
 // Implemented with the hand-written Markdown parser (`shared/markdown.ts`)
 // feeding the shared pdf-lib layout engine (`shared/docRenderer.ts`) — see
-// that module's doc comment for why pdf-lib rather than pdfmake (the PRD's
-// original engine choice) renders this.
+// that module's doc comment for why pdf-lib renders this instead of pdfmake.
 export async function fromMarkdownExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,

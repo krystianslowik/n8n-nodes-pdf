@@ -2,9 +2,9 @@ dist
 node_modules
 *.tgz
 
-# spike/drive-analyze.mjs unpacks the npm-packed tarball here to run the
+# scripts/scan-check.mjs unpacks the npm-packed tarball here to run the
 # scanner's analyzePackage() against it locally. Never committed.
-spike/.analyze-tmp/
+scripts/.analyze-tmp/
 
 # tests/util/load-ts.mjs writes on-the-fly esbuild-transpiled .ts files here
 # to unit-test shared/pageRanges.ts directly; deleted right after each

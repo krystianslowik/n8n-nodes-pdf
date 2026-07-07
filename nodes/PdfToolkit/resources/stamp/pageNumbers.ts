@@ -52,7 +52,7 @@ export const pageNumbersDescription: INodeProperties[] = [
 	),
 ];
 
-/** Substitutes "{page}"/"{pages}" in the format template (PRD F6 example: 'Page {page} of {total}'). */
+/** Substitutes "{page}"/"{pages}" in the format template (e.g. 'Page {page} of {total}'). */
 function formatPageLabel(format: string, page: number, pages: number): string {
 	return format.replace(/\{page\}/g, String(page)).replace(/\{pages\}|\{total\}/g, String(pages));
 }
