@@ -171,6 +171,12 @@ helpers.
 
 ## Version history
 
+- **0.2.6**: Fixed the node identifier in the codex metadata file to the
+  fully-qualified format (`n8n-nodes-pdf.pdfToolkit`). No functional changes.
+  (0.2.5 was skipped.)
+- **0.2.4**: Updated author contact metadata. No functional changes.
+- **0.2.3**: Documentation refresh — workflow screenshot in the README,
+  tightened wording. No functional changes.
 - **0.2.2**: Removed Extract → Text and the Secure resource (Encrypt,
   Decrypt, Set Permissions) from the node UI; they were never functional,
   engine-blocked stubs since 0.2.0. Five resources / 18 operations, all
