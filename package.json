@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-pdf",
-	"version": "0.2.6",
+	"version": "0.2.7",
 	"description": "n8n community node for local, in-process PDF operations (merge, split, rotate/reorder/delete pages, generate from template/Markdown/images, fill and read forms, watermark and page numbers, text/metadata/image extraction) with zero external services.",
 	"license": "MIT",
 	"homepage": "https://github.com/krystianslowik/n8n-nodes-pdf",
