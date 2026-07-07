@@ -9,28 +9,52 @@
  * `tests/shared/markdown.test.mjs`).
  *
  * Supported constructs: headings (`#`..`######`, clamped to heading levels
- * 1-3), paragraphs, inline `**bold**`/`__bold__`, `*italic*`/`_italic_`, and
- * `` `code` ``, bullet lists (`-`/`*`/`+`), numbered lists (`1.`/`1)`),
- * fenced code blocks (` ``` `), and GFM-style pipe tables (header row +
- * `---`/`:--`/`--:` delimiter row + data rows).
+ * 1-3, plus `===`/`---` setext underlines), paragraphs, inline
+ * `**bold**`/`__bold__`, `*italic*`/`_italic_`, `` `code` ``,
+ * `~~strikethrough~~`, and `[text](url)` links, blockquotes (`>`, including
+ * multi-line), bullet lists (`-`/`*`/`+`), numbered lists (`1.`/`1)`),
+ * fenced code blocks (` ``` `), thematic breaks (`---`/`***`/`___`), and
+ * GFM-style pipe tables (header row + `---`/`:--`/`--:` delimiter row +
+ * data rows).
  *
- * NOT supported (falls through to a literal paragraph, not an error):
- * nested lists, blockquotes, links, images, horizontal rules, HTML.
+ * NOT supported (degrades to clean plain text where handled below, never an
+ * error): nested lists (flattened), images (`![alt](url)` renders the alt
+ * text only), reference-style links (`[text][ref]` renders the text only),
+ * inline HTML (rendered literally).
  */
 import type { DocBlock, InlineText, TextRun } from './docRenderer';
 
-// Matches **bold**, __bold__, *italic*, _italic_, or `code` — checked in
-// that order below (bold's double-delimiter form must be tested before the
-// single-delimiter italic form, since "**x**" also satisfies "starts/ends
-// with a single *").
-const INLINE_PATTERN = /(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)/g;
+// Matches ![image](url), [link](url), [ref][links], ~~strike~~, **bold**,
+// __bold__, *italic*, _italic_, or `code` — the double-delimiter bold forms
+// must come before the single-delimiter italic forms, since "**x**" also
+// satisfies "starts/ends with a single *".
+const INLINE_PATTERN =
+	/(!?\[[^\]]*\]\([^()\s]+\)|\[[^\]]*\]\[[^\]]*\]|~~[^~]+~~|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`)/g;
 
-/** Parses inline `**bold**`/`*italic*`/`` `code` `` spans in `text` into styled runs. */
+const LINK_PART = /^(!?)\[([^\]]*)\]\(([^()\s]+)\)$/;
+const REF_LINK_PART = /^\[([^\]]*)\]\[[^\]]*\]$/;
+
+/** Parses inline bold/italic/code/strikethrough/link spans in `text` into styled runs. */
 export function parseInline(text: string): TextRun[] {
 	const parts = text.split(INLINE_PATTERN).filter((part) => part.length > 0);
 	const runs: TextRun[] = [];
 	for (const part of parts) {
-		if ((part.startsWith('**') && part.endsWith('**')) || (part.startsWith('__') && part.endsWith('__'))) {
+		const linkMatch = LINK_PART.exec(part);
+		const refLinkMatch = linkMatch ? null : REF_LINK_PART.exec(part);
+		if (linkMatch) {
+			// `![alt](url)` (image, unsupported) degrades to the alt text alone;
+			// `[text](url)` becomes a link run the renderer underlines + annotates.
+			if (linkMatch[1] === '!') runs.push({ text: linkMatch[2] });
+			else runs.push({ text: linkMatch[2], link: linkMatch[3] });
+		} else if (refLinkMatch) {
+			// Reference-style links are unsupported: render the text, drop the ref.
+			runs.push({ text: refLinkMatch[1] });
+		} else if (part.startsWith('~~') && part.endsWith('~~')) {
+			runs.push({ text: part.slice(2, -2), strike: true });
+		} else if (
+			(part.startsWith('**') && part.endsWith('**')) ||
+			(part.startsWith('__') && part.endsWith('__'))
+		) {
 			runs.push({ text: part.slice(2, -2), bold: true });
 		} else if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
 			runs.push({ text: part.slice(1, -1), code: true });
@@ -69,12 +93,21 @@ const HEADING_PATTERN = /^(#{1,6})\s+(.+)$/;
 const FENCE_PATTERN = /^\s*```/;
 const BULLET_PATTERN = /^\s*[-*+]\s+(.+)$/;
 const NUMBERED_PATTERN = /^\s*\d+[.)]\s+(.+)$/;
+const QUOTE_PATTERN = /^\s{0,3}>\s?(.*)$/;
+// CommonMark thematic break: 3+ of the same marker (-/*/_), optionally
+// space-separated, alone on the line (up to 3 leading spaces).
+const THEMATIC_BREAK_PATTERN = /^\s{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/;
+// Setext heading underline: `===` (level 1) or `---` (level 2) directly
+// under paragraph text — which is why a `---` there is NOT a thematic break.
+const SETEXT_UNDERLINE_PATTERN = /^\s{0,3}(=+|-+)[ \t]*$/;
 
 function isParagraphBoundary(line: string, nextLine: string | undefined): boolean {
 	return (
 		line.trim().length === 0 ||
 		HEADING_PATTERN.test(line) ||
 		FENCE_PATTERN.test(line) ||
+		THEMATIC_BREAK_PATTERN.test(line) ||
+		QUOTE_PATTERN.test(line) ||
 		BULLET_PATTERN.test(line) ||
 		NUMBERED_PATTERN.test(line) ||
 		(line.includes('|') && nextLine !== undefined && isTableDelimiterRow(nextLine))
@@ -115,6 +148,28 @@ export function parseMarkdown(markdown: string): DocBlock[] {
 			const level = Math.min(headingMatch[1].length, 3) as 1 | 2 | 3;
 			blocks.push({ type: 'heading', level, text: parseInlineText(headingMatch[2].trim()) });
 			i++;
+			continue;
+		}
+
+		// Must be checked before the list patterns: "- - -"/"* * *" thematic
+		// breaks would otherwise match BULLET_PATTERN. A "---" directly under
+		// paragraph text never reaches here (the paragraph handler below
+		// consumes it as a setext underline first, per CommonMark).
+		if (THEMATIC_BREAK_PATTERN.test(line)) {
+			blocks.push({ type: 'hr' });
+			i++;
+			continue;
+		}
+
+		if (QUOTE_PATTERN.test(line)) {
+			const quoteLines: string[] = [];
+			while (i < lines.length) {
+				const match = QUOTE_PATTERN.exec(lines[i]);
+				if (!match) break;
+				quoteLines.push(match[1]);
+				i++;
+			}
+			blocks.push({ type: 'quote', text: parseInlineText(quoteLines.join(' ').trim()) });
 			continue;
 		}
 
@@ -159,11 +214,23 @@ export function parseMarkdown(markdown: string): DocBlock[] {
 		// a boundary itself (every check above already ruled that out), so this
 		// loop always advances `i` at least once.
 		const paragraphLines: string[] = [];
-		while (i < lines.length && !isParagraphBoundary(lines[i], lines[i + 1])) {
+		while (i < lines.length) {
+			// A setext underline check must run before the boundary check: "---"
+			// under paragraph text satisfies THEMATIC_BREAK_PATTERN too, but per
+			// CommonMark it is a heading underline there, not a thematic break.
+			if (paragraphLines.length > 0 && SETEXT_UNDERLINE_PATTERN.test(lines[i])) break;
+			if (isParagraphBoundary(lines[i], lines[i + 1])) break;
 			paragraphLines.push(lines[i]);
 			i++;
 		}
-		blocks.push({ type: 'paragraph', text: parseInlineText(paragraphLines.join(' ').trim()) });
+		const text = parseInlineText(paragraphLines.join(' ').trim());
+		if (i < lines.length && SETEXT_UNDERLINE_PATTERN.test(lines[i]) && paragraphLines.length > 0) {
+			const level = lines[i].trim().startsWith('=') ? 1 : 2;
+			i++;
+			blocks.push({ type: 'heading', level, text });
+			continue;
+		}
+		blocks.push({ type: 'paragraph', text });
 	}
 
 	return blocks;

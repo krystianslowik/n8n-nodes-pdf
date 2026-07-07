@@ -20,6 +20,7 @@ import { NodeOperationError } from 'n8n-workflow';
 import {
 	PDFDocument,
 	degrees,
+	rgb,
 	PDFArray,
 	PDFButton,
 	PDFCheckBox,
@@ -34,12 +35,20 @@ import {
 	PDFRawStream,
 	PDFSignature,
 	PDFStream,
+	PDFString,
 	PDFTextField,
 } from 'pdf-lib';
+// Type-only import of the same package: a separate ImportDeclaration, so it
+// needs its own suppression (see the comment above). `PDFFont`/`PDFPage`
+// carry no runtime weight (erased by tsc) but are needed to type the
+// Unicode-font helpers in `shared/fonts.ts`.
+// eslint-disable-next-line @n8n/community-nodes/no-restricted-imports
+import type { PDFFont, PDFPage, PDFPageDrawTextOptions } from 'pdf-lib';
 
 export {
 	PDFDocument,
 	degrees,
+	rgb,
 	PDFArray,
 	PDFButton,
 	PDFCheckBox,
@@ -54,8 +63,10 @@ export {
 	PDFRawStream,
 	PDFSignature,
 	PDFStream,
+	PDFString,
 	PDFTextField,
 };
+export type { PDFFont, PDFPage, PDFPageDrawTextOptions };
 
 /**
  * 100MB is the hard ceiling for any single PDF binary this node will attempt

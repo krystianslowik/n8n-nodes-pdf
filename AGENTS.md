@@ -37,6 +37,12 @@ see below) and never calls a third-party API.
   bundled via `scripts/esbuild-bundle.mjs`; the scanner check
   (`npm run scan`, which runs `scripts/scan-check.mjs`) must stay at 0
   errors.
+- Text drawing uses bundled Noto fonts (Sans/Mono/Emoji TTFs from
+  `@expo-google-fonts/*` devDeps) inlined by esbuild's binary loader
+  (`nodes/PdfToolkit/shared/fonts.ts`) and embedded per document with
+  `@pdf-lib/fontkit` (`subset: true`). Never reintroduce `StandardFonts.*`
+  in a text-drawing path — WinAnsi encoding breaks on any non-Latin-1
+  character.
 - Never output generic `Wordpress`/`Example`-style filler — everything here
   is PDF-domain (Document/Generate/Form/Stamp/Extract/Secure resources).
 
@@ -66,7 +72,9 @@ There are two main folders in this project:
 │   ├── esbuild-bundle.mjs # bundles pdf-lib into dist/ post-build (see above)
 │   ├── scan-check.mjs     # local stand-in for the scanner CLI, run via `npm run scan`
 │   └── shims/
-│       └── yield.js       # esbuild `inject` shim, see esbuild-bundle.mjs
+│       ├── yield.js           # esbuild `inject` shim (setTimeout), see esbuild-bundle.mjs
+│       ├── globals.js         # esbuild `inject` shim (global/globalThis/process/clearTimeout, for fontkit)
+│       └── fontkit-patch.mjs  # esbuild onLoad plugin patching dead-under-Node patterns out of fontkit's dist
 ├── package.json
 └── ...
 ```

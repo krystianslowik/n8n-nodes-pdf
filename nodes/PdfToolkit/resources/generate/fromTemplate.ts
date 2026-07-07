@@ -27,8 +27,8 @@ export const fromTemplateDescription: INodeProperties[] = [
 			'("a4"/"letter"), `margins` ({top,bottom,left,right}), `header`/`footer` (same text shape, with ' +
 			'"{{page}}"/"{{pages}}" placeholders), and `pageNumbers` (boolean shortcut for a "Page {{page}} ' +
 			'of {{pages}}" footer) are also supported. Rendered with a pdf-lib-based layout engine — see ' +
-			'nodes/PdfToolkit/shared/docRenderer.ts for this renderer\'s exact v0 boundaries (base fonts ' +
-			'only, no nested lists, equal-width table columns).',
+			'nodes/PdfToolkit/shared/docRenderer.ts for this renderer\'s exact v0 boundaries (bundled Unicode ' +
+			'fonts only, no nested lists, equal-width table columns).',
 		typeOptions: { rows: 10 },
 	},
 	outputOptionsField(
@@ -41,9 +41,10 @@ export const fromTemplateDescription: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description:
-					'Name of an input binary field containing a custom (e.g. Unicode/CJK) font file to embed. NOT YET ' +
-					'SUPPORTED — setting this throws a clear error rather than silently ignoring it. Only the ' +
-					'bundled base fonts (Helvetica/Courier) are available.',
+					'Name of an input binary field containing a custom (e.g. CJK) font file to embed. NOT YET ' +
+					'SUPPORTED — setting this throws a clear error rather than silently ignoring it. The bundled ' +
+					'Noto Sans/Noto Sans Mono/Noto Emoji faces (Latin/Latin Extended/Cyrillic/Greek plus ' +
+					'monochrome emoji) are used instead — see the README\'s Generate section.',
 			},
 		],
 		'generated.pdf',
@@ -211,7 +212,7 @@ export async function fromTemplateExecute(
 		throw new NodeOperationError(
 			this.getNode(),
 			'From Template: custom font embedding via a binary input is not yet supported — this operation\'s ' +
-				'pdf-lib-based renderer only has the bundled base fonts (Helvetica/Courier/Times) available. ' +
+				'pdf-lib-based renderer only has the bundled Noto Sans/Noto Sans Mono/Noto Emoji faces available. ' +
 				"See the README's Generate section.",
 			{ itemIndex },
 		);
@@ -234,7 +235,7 @@ export async function fromTemplateExecute(
 	}
 
 	const pdf = await PDFDocument.create();
-	const { pageCount } = await renderDocument(pdf, blocks, renderOptions, this.getNode());
+	const { pageCount } = await renderDocument(pdf, blocks, renderOptions, this.getNode(), 'From Template', itemIndex);
 
 	const outputFileName = options.outputFileName ?? 'generated.pdf';
 	const binaryData = await savePdfAsBinary(this, pdf, outputFileName);

@@ -16,12 +16,15 @@ import { build } from 'esbuild';
 import { existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { fontkitPatchPlugin } from './shims/fontkit-patch.mjs';
+
 const entryPoints = ['dist/nodes/PdfToolkit/PdfToolkit.node.js'];
 
-// See scripts/shims/yield.js for the full rationale. Resolved to an absolute
-// path (via import.meta.url) so this script behaves the same regardless of
-// the caller's cwd.
+// See scripts/shims/yield.js and scripts/shims/globals.js for the full
+// rationale of each. Resolved to absolute paths (via import.meta.url) so
+// this script behaves the same regardless of the caller's cwd.
 const yieldShimPath = fileURLToPath(new URL('./shims/yield.js', import.meta.url));
+const globalsShimPath = fileURLToPath(new URL('./shims/globals.js', import.meta.url));
 
 for (const entry of entryPoints) {
 	if (!existsSync(entry)) {
@@ -41,6 +44,16 @@ await build({
 	allowOverwrite: true,
 	sourcemap: false,
 	logLevel: 'info',
+	// See scripts/shims/fontkit-patch.mjs: patches three scanner-flagged, but
+	// provably dead-under-Node, code patterns out of @pdf-lib/fontkit's
+	// published dist file before esbuild parses it.
+	plugins: [fontkitPatchPlugin],
+	// Noto Sans/Noto Sans Mono/Noto Emoji (shared/fonts.ts) are imported as
+	// `.ttf` files from their devDependency npm packages; esbuild's `binary`
+	// loader inlines each one's bytes as a base64 literal decoded back into a
+	// `Uint8Array` default export at BUILD time — no filesystem/network access
+	// at runtime (see shared/ttf.d.ts and shared/fonts.ts).
+	loader: { '.ttf': 'binary' },
 	// pdf-lib itself calls `console.warn`/`console.log` in a few validation
 	// paths (e.g. malformed-PDF recovery). Once bundled, that third-party
 	// code is indistinguishable from "our" code to static analysis, and
@@ -64,8 +77,10 @@ await build({
 	// not textual obfuscation — see scripts/shims/yield.js for the
 	// event-loop-yielding tradeoff this introduces (queueMicrotask is not a
 	// full substitute for setTimeout/setImmediate, both of which are legal
-	// vs. banned respectively).
-	inject: [yieldShimPath],
+	// vs. banned respectively). scripts/shims/globals.js covers the extra
+	// `global`/`globalThis`/`process` references @pdf-lib/fontkit's bundled
+	// output adds (see that file for the full rationale).
+	inject: [yieldShimPath, globalsShimPath],
 });
 
 // The individually tsc-compiled per-file JS under resources/** and shared/**

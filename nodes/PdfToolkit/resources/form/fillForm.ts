@@ -2,6 +2,8 @@ import type { IExecuteFunctions, INode, INodeExecutionData, INodeProperties } fr
 import { NodeOperationError } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField } from '../../shared/descriptions';
+import { embedUnicodeFonts, findUncoveredCodePointLabel } from '../../shared/fonts';
+import type { UnicodeFontBundle } from '../../shared/fonts';
 import {
 	PDFCheckBox,
 	PDFDropdown,
@@ -112,6 +114,40 @@ function setFieldValue(
 	);
 }
 
+/**
+ * pdf-lib draws a text/dropdown/option-list field's WHOLE appearance with a
+ * single font (unlike `drawUnicodeText`'s per-run emoji fallback used by
+ * Generate/Stamp), so a value containing a character the bundled Noto Sans
+ * face has no glyph for — most commonly emoji — can't be silently
+ * mixed-font-drawn into a field's appearance stream. Checked right after the
+ * value is set, so the error names the specific field, not a generic font
+ * error surfacing later from `form.updateFieldAppearances()`.
+ */
+function assertFieldAppearanceCoverage(
+	field: PDFField,
+	fieldName: string,
+	bundle: UnicodeFontBundle,
+	node: INode,
+	itemIndex: number,
+): void {
+	let text: string | undefined;
+	if (field instanceof PDFTextField) text = field.getText();
+	else if (field instanceof PDFDropdown) text = field.getSelected().join(', ');
+	else if (field instanceof PDFOptionList) text = field.getSelected().join(', ');
+	if (!text) return;
+
+	const uncovered = findUncoveredCodePointLabel(bundle, text, 'regular');
+	if (uncovered) {
+		throw new NodeOperationError(
+			node,
+			`Fill Form: field "${fieldName}"'s value contains a character (${uncovered}) that this ` +
+				"operation cannot render into a form field's appearance — Fill Form supports Latin/Latin " +
+				'Extended/Cyrillic/Greek text in field values, not emoji or other pictographic characters',
+			{ itemIndex },
+		);
+	}
+}
+
 // Implemented with pdf-lib: `PDFDocument.getForm()`, set each field named in
 // "Field Values" from its JSON value, optionally `form.flatten()`.
 export async function fillFormExecute(
@@ -143,6 +179,7 @@ export async function fillFormExecute(
 	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
 	const pdf = await loadPdfDocument(buffer, this.getNode(), binaryPropertyName, itemIndex);
 	const form = pdf.getForm();
+	const bundle = await embedUnicodeFonts(pdf);
 
 	const fieldNames = Object.keys(fieldValues);
 	for (const fieldName of fieldNames) {
@@ -157,7 +194,16 @@ export async function fillFormExecute(
 			);
 		}
 		setFieldValue(field, fieldName, fieldValues[fieldName], this.getNode(), itemIndex);
+		assertFieldAppearanceCoverage(field, fieldName, bundle, this.getNode(), itemIndex);
 	}
+
+	// Regenerate appearances with the embedded Unicode font BEFORE save() gets
+	// a chance to do it itself: `PDFDocument.save()` auto-calls
+	// `form.updateFieldAppearances()` with pdf-lib's WinAnsi-only DEFAULT font
+	// for any field still marked dirty, which is exactly the "WinAnsi cannot
+	// encode ł" bug this package is fixing — calling it here first, with our
+	// font, marks every field clean so that fallback never fires.
+	form.updateFieldAppearances(bundle.fonts.regular);
 
 	const flatten = options.flatten ?? false;
 	if (flatten) {

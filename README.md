@@ -48,11 +48,24 @@ property configurable under **Options**.
 | Operation | Description |
 |---|---|
 | From Template | Generate a PDF from a declarative JSON template (headings, paragraphs, lists, tables, code, images, headers/footers, page numbers) |
-| From Markdown | Generate a PDF from Markdown (headings, bold/italic/code, lists, fenced code blocks, pipe tables) |
+| From Markdown | Generate a PDF from Markdown (headings, bold/italic/code/strikethrough, links, blockquotes, lists, fenced code blocks, horizontal rules, pipe tables) |
 | From Images | Combine one image per incoming item into a multi-page PDF |
 
-Generation uses the bundled base fonts (Helvetica, Times, Courier). Custom
-fonts, nested lists, and per-column table widths are not supported yet.
+Generation, Stamp → Text Watermark/Page Numbers, and Form → Fill Form use
+bundled Unicode fonts (Noto Sans/Noto Sans Mono, plus Noto Emoji as a
+monochrome fallback for emoji/pictographic characters) — full Latin, Latin
+Extended (e.g. Polish "ł", Turkish "ı", Czech "č"), Cyrillic, and Greek text
+is supported, not just the ASCII/WinAnsi range earlier versions were limited
+to. Emoji render in **monochrome only** (no color), and a ZWJ-joined emoji
+sequence (e.g. a "family" emoji built from several codepoints) may render as
+its separate component emoji if the bundled font has no combined glyph for
+that exact sequence. A character neither font covers (rare — mostly Private
+Use Area codepoints, or scripts like CJK/Arabic/Hebrew that need a different
+font family) throws a clear error naming the character instead of silently
+dropping it or crashing with a raw font-library error. Custom fonts, nested
+lists, and per-column table widths are still not supported. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the bundled fonts'
+licenses (all OFL-1.1).
 
 ### Form
 
@@ -142,6 +155,11 @@ whatever binary field the previous node produced (usually `data`).
 - **Heavy documents:** operations are CPU-bound and run in-process. Very
   large documents processed concurrently with other busy workloads on the
   same instance may add latency to that instance.
+- **Form → Fill Form and emoji:** pdf-lib renders one form field's whole
+  appearance with a single font, unlike Generate/Stamp's per-character emoji
+  fallback — a field value containing an emoji or other pictographic
+  character throws a clear error naming the field, rather than silently
+  producing a blank appearance.
 
 ## Credentials
 
@@ -169,6 +187,10 @@ package — merge, split, forms, watermarks, extraction — is functionality
 
 ## Version history
 
+- **0.2.1** — Unicode + emoji text support: Generate, Text Watermark, Page
+  Numbers, and Fill Form now draw text with bundled Noto Sans/Noto Sans
+  Mono/Noto Emoji fonts (Latin Extended, Cyrillic, Greek, monochrome emoji)
+  instead of the WinAnsi-only built-in fonts.
 - **0.2.0** — 18 of 22 operations implemented (all of Document, Generate,
   Form, and Stamp; Extract Metadata, Embedded Images, and Page Count),
   covered by an automated test suite. Zero runtime dependencies.

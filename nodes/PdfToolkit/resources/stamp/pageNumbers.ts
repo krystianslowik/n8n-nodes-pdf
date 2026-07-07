@@ -1,6 +1,7 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField } from '../../shared/descriptions';
+import { drawUnicodeText, embedUnicodeFonts, measureUnicodeText } from '../../shared/fonts';
 import { loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
 import { resolveStampPosition, type StampPosition } from '../../shared/stampPosition';
 
@@ -57,10 +58,10 @@ function formatPageLabel(format: string, page: number, pages: number): string {
 	return format.replace(/\{page\}/g, String(page)).replace(/\{pages\}|\{total\}/g, String(pages));
 }
 
-// Implemented with pdf-lib: embeds Helvetica once, then `page.drawText()`
-// with the formatted page-number label for EVERY page (page numbering
-// always applies to the whole document, unlike the watermark ops' optional
-// page-range selection).
+// Implemented with pdf-lib + `@pdf-lib/fontkit`: embeds the bundled Noto
+// Sans face once (see `shared/fonts.ts`), then draws the formatted
+// page-number label for EVERY page (page numbering always applies to the
+// whole document, unlike the watermark ops' optional page-range selection).
 export async function pageNumbersExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
@@ -85,16 +86,16 @@ export async function pageNumbersExecute(
 	const pages = pdf.getPages();
 	const pageCount = pages.length;
 
-	const font = await pdf.embedFont('Helvetica');
-	const textHeight = font.heightAtSize(fontSize);
+	const bundle = await embedUnicodeFonts(pdf);
+	const textHeight = bundle.fonts.regular.heightAtSize(fontSize);
 
 	for (let index = 0; index < pageCount; index++) {
 		const page = pages[index];
 		const label = formatPageLabel(format, startNumber + index, pageCount);
-		const textWidth = font.widthOfTextAtSize(label, fontSize);
+		const textWidth = measureUnicodeText(bundle, label, 'regular', fontSize);
 		const { width, height } = page.getSize();
 		const { x, y } = resolveStampPosition(position, width, height, textWidth, textHeight);
-		page.drawText(label, { x, y, size: fontSize, font });
+		drawUnicodeText(page, label, bundle, { x, y, size: fontSize, style: 'regular' }, this.getNode(), 'Page Numbers', itemIndex);
 	}
 
 	const outputFileName = options.outputFileName ?? 'numbered.pdf';

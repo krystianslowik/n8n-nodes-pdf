@@ -102,4 +102,8 @@ console.log(
 	'[scan-check] Reminder: this is the scanner\'s local lint check only, not the published-package ' +
 		'CLI, human review, or the Cloud install gate.',
 );
+// Clean up on success so a later `npm run lint` (which walks scripts/, and
+// this temp dir with it) doesn't lint the unpacked tarball copy of the
+// bundle. Left in place on FAILURE so the flagged files are inspectable.
+rmSync(tmpRoot, { recursive: true, force: true });
 process.exit(0);

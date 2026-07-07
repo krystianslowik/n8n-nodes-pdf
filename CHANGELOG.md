@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.1 - 2026-07-07
+
+Unicode and emoji text support for every text-drawing operation. Generate
+(From Template / From Markdown), Stamp (Text Watermark / Page Numbers), and
+Form (Fill Form) previously used pdf-lib's built-in WinAnsi-encoded fonts,
+so any character outside Latin-1 (e.g. Polish "ł", Cyrillic, Greek, emoji)
+threw a raw `WinAnsi cannot encode` error. These operations now use bundled
+Noto Sans / Noto Sans Mono faces embedded via `@pdf-lib/fontkit` (subset at
+save time, so output PDFs stay small), with monochrome Noto Emoji as a
+per-run fallback for pictographic characters in Generate and Stamp. Known
+boundaries, documented in the README: emoji render monochrome only; ZWJ
+sequences may render as their component emoji; skin-tone modifiers may
+drop. Fill Form regenerates field appearances with the embedded Unicode
+font, but pdf-lib draws one field's whole appearance with a single font, so
+an emoji in a field value throws a clear error naming the field instead of
+producing a blank appearance. Characters no bundled font covers throw a
+clear error naming the codepoint (as U+XXXX) and operation. The bundled
+dist grows from ~1.1 MB to ~7.6 MB (six inlined font files). Font
+licenses: see `THIRD_PARTY_NOTICES.md` (OFL-1.1), referenced from the
+README.
+
+Fixed a font-subset corruption bug in the bundled `@pdf-lib/fontkit`
+(1.1.1): its TTF subsetter re-derives the `loca` offset format from the
+subset's size and picks the short format (offsets stored ÷ 2) without
+padding glyph records to even lengths, so one odd-length glyph record
+misaligned every glyph after it — the saved font program had the right
+glyph count but mostly empty outlines, rendering most characters blank in
+every PDF viewer. Patched at build time to inherit the source font's `loca`
+format (the same fix upstream fontkit shipped in 2.x); see
+`scripts/shims/fontkit-patch.mjs` and the "every drawn glyph … has a real
+outline" regression test.
+
+Fixed user-reported Generate rendering bugs (From Markdown / From
+Template's shared layout engine): fenced code blocks rendered as a solid
+black rectangle — the background `drawRectangle` call passed neither
+`color` nor `borderColor`, so pdf-lib defaulted to a black FILL painted
+over the already-drawn code text; code blocks now draw a light-gray
+background box first, then dark monospace text on top. Blockquotes (`>`,
+multi-line, inline styles intact), `[text](url)` links (underlined +
+clickable URI annotation), `~~strikethrough~~` (real line-through), and
+horizontal rules (`---`/`***`/`___`, CommonMark thematic-break rules — a
+`---` directly under paragraph text is a setext level-2 heading instead)
+are now parsed and rendered instead of showing raw syntax. Unsupported
+inline forms degrade to clean text (`![alt](url)` renders the alt text,
+`[text][ref]` renders the text). Vertical spacing is normalized: text
+baselines now sit a font-size below the block cursor, so headings after a
+table or code block no longer overlap the previous block, and every block
+type leaves the same 10pt bottom margin. Inter-word spaces are drawn as
+real space glyphs (previously pure x-positioning), so text
+extraction/copy-paste from generated PDFs keeps spaces ("Tuesday, for"
+no longer extracts as "Tuesday,for").
+
 ## 0.2.0 - 2026-07-07
 
 **Summary:** 0.1.0 shipped only the node's UI/scaffold — every one of the 22

@@ -153,4 +153,70 @@ export const tests = [
 			assert.deepEqual(parseMarkdown('\n\n   \n'), []);
 		},
 	},
+	{
+		name: 'parseInline: ~~strikethrough~~ produces a strike run',
+		fn: () => {
+			assert.deepEqual(parseInline('~~gone~~'), [{ text: 'gone', strike: true }]);
+		},
+	},
+	{
+		name: 'parseInline: [text](url) produces a link run; image/reference forms degrade to plain text',
+		fn: () => {
+			assert.deepEqual(parseInline('see [docs](https://example.com) now'), [
+				{ text: 'see ' },
+				{ text: 'docs', link: 'https://example.com' },
+				{ text: ' now' },
+			]);
+			// Unsupported forms must never leave raw bracket syntax behind.
+			assert.deepEqual(parseInline('![alt text](https://x.co/i.png)'), [{ text: 'alt text' }]);
+			assert.deepEqual(parseInline('[ref link][1]'), [{ text: 'ref link' }]);
+		},
+	},
+	{
+		name: 'parseInline: a space at a styled-run boundary survives exactly ("*Tuesday,* for")',
+		fn: () => {
+			assert.deepEqual(parseInline('*Tuesday,* for the team'), [
+				{ text: 'Tuesday,', italic: true },
+				{ text: ' for the team' },
+			]);
+		},
+	},
+	{
+		name: 'parseMarkdown: "> ..." lines form a quote block (multi-line, inline styles intact), no literal ">"',
+		fn: () => {
+			const blocks = parseMarkdown('> quoted **bold** text\n> and more\n\nAfter.');
+			assert.equal(blocks.length, 2);
+			assert.equal(blocks[0].type, 'quote');
+			assert.deepEqual(blocks[0].text, [
+				{ text: 'quoted ' },
+				{ text: 'bold', bold: true },
+				{ text: ' text and more' },
+			]);
+			assert.equal(blocks[1].type, 'paragraph');
+		},
+	},
+	{
+		name: 'parseMarkdown: standalone ---/***/___/- - - lines are hr blocks (thematic breaks)',
+		fn: () => {
+			const blocks = parseMarkdown('a\n\n---\n\n***\n\n___\n\n- - -\n\nb');
+			assert.deepEqual(
+				blocks.map((b) => b.type),
+				['paragraph', 'hr', 'hr', 'hr', 'hr', 'paragraph'],
+			);
+		},
+	},
+	{
+		name: 'parseMarkdown: "---" directly under a paragraph line is a setext level-2 heading, not an hr ("===" is level 1)',
+		fn: () => {
+			const blocks = parseMarkdown('Title\n---\n\nBig\n===\n');
+			assert.deepEqual(
+				blocks.map((b) => [b.type, b.level]),
+				[
+					['heading', 2],
+					['heading', 1],
+				],
+			);
+			assert.deepEqual(blocks[0].text, [{ text: 'Title' }]);
+		},
+	},
 ];

@@ -18,8 +18,9 @@ export const fromMarkdownDescription: INodeProperties[] = [
 		displayOptions: { show: showOnlyForFromMarkdown },
 		description:
 			'Markdown source to render as a PDF. Supports headings (# .. ######), paragraphs with ' +
-			'**bold**/*italic*/`code` spans, bullet ("-") and numbered ("1.") lists, fenced (```) code blocks, ' +
-			'and GFM-style pipe tables. This is a small hand-written subset of Markdown, not a full ' +
+			'**bold**/*italic*/`code`/~~strikethrough~~/[link](url) spans, blockquotes (>), bullet ("-") and ' +
+			'numbered ("1.") lists, fenced (```) code blocks, horizontal rules (---), and GFM-style pipe ' +
+			'tables. This is a small hand-written subset of Markdown, not a full ' +
 			'CommonMark implementation — see nodes/PdfToolkit/shared/markdown.ts for the exact supported ' +
 			'grammar. Rendered with the same pdf-lib-based layout engine as Generate > From Template.',
 	},
@@ -41,7 +42,7 @@ export async function fromMarkdownExecute(
 
 	const blocks = parseMarkdown(markdown);
 	const pdf = await PDFDocument.create();
-	const { pageCount } = await renderDocument(pdf, blocks, {}, this.getNode());
+	const { pageCount } = await renderDocument(pdf, blocks, {}, this.getNode(), 'From Markdown', itemIndex);
 
 	const outputFileName = options.outputFileName ?? 'document.pdf';
 	const binaryData = await savePdfAsBinary(this, pdf, outputFileName);

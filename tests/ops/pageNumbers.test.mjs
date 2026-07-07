@@ -3,8 +3,9 @@
  * Page count must stay unchanged; every page's content stream
  * must grow (a label was really drawn on it) — same honest content-stream
  * assertion as the watermark tests (`tests/pdf-content.mjs`), plus checking
- * the hex-encoded operand of each page's EXPECTED label text (so "page 2 of
- * 3" isn't just "some text", it's specifically the right label per page).
+ * (via `extractDrawnText`) that each page's EXPECTED label text was really
+ * drawn (so "page 2 of 3" isn't just "some text", it's specifically the
+ * right label per page).
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -12,7 +13,7 @@ import { createRequire } from 'node:module';
 import { createMockExecuteFunctions, decodeOutputPdfBuffer, itemWithPdf } from '../mock-execute.mjs';
 import { makeDistinguishablePdf } from '../fixtures.mjs';
 import { createPdfToolkitInstance } from '../load-dist.mjs';
-import { getPageContentBytes, getPageContentText, textToHexOperand } from '../pdf-content.mjs';
+import { extractDrawnText, getPageContentBytes } from '../pdf-content.mjs';
 
 const require = createRequire(import.meta.url);
 const { PDFDocument } = require('pdf-lib');
@@ -51,11 +52,10 @@ export const tests = [
 				assert.ok(stampedLength > originalLengths[index], `page ${index} content stream must grow`);
 
 				const expectedLabel = `Page ${index + 1} of 3`;
-				const hexMarker = textToHexOperand(expectedLabel);
-				const text = getPageContentText(numbered, index);
+				const drawnText = extractDrawnText(numbered, index);
 				assert.ok(
-					text.toUpperCase().includes(hexMarker),
-					`page ${index} must contain its own label "${expectedLabel}"`,
+					drawnText.includes(expectedLabel),
+					`page ${index} must contain its own label "${expectedLabel}", got: ${drawnText}`,
 				);
 			}
 		},
@@ -69,10 +69,23 @@ export const tests = [
 				startNumber: 5,
 			});
 
-			const hexMarkerFirst = textToHexOperand('5/2');
-			const hexMarkerSecond = textToHexOperand('6/2');
-			assert.ok(getPageContentText(numbered, 0).toUpperCase().includes(hexMarkerFirst));
-			assert.ok(getPageContentText(numbered, 1).toUpperCase().includes(hexMarkerSecond));
+			assert.ok(extractDrawnText(numbered, 0).includes('5/2'));
+			assert.ok(extractDrawnText(numbered, 1).includes('6/2'));
+		},
+	},
+	{
+		// Regression test for the reported bug: a format string containing a
+		// Latin Extended-A character ("ł") used to throw "WinAnsi cannot
+		// encode ł" via pdf-lib's standard Helvetica font.
+		name: 'a format string containing "ł" ("Strona {page} z {total} ł") does not throw and is drawn',
+		fn: async () => {
+			const original = await makeDistinguishablePdf(1);
+			const originalPdf = await PDFDocument.load(original);
+			const originalLength = getPageContentBytes(originalPdf, 0).length;
+
+			const { pdf: numbered } = await runPageNumbers(original, { format: 'Strona {page} z {pages} ł' });
+			assert.ok(getPageContentBytes(numbered, 0).length > originalLength);
+			assert.ok(extractDrawnText(numbered, 0).includes('Strona 1 z 1 ł'));
 		},
 	},
 ];

@@ -128,4 +128,38 @@ export const tests = [
 			);
 		},
 	},
+	{
+		// Regression test for the reported bug: pdf-lib's `save()` auto-calls
+		// `form.updateFieldAppearances()` with its WinAnsi-only default font for
+		// any field still marked dirty — "WinAnsi cannot encode ł" would have
+		// thrown here at save time before `shared/fonts.ts`'s embedded Noto
+		// Sans font was wired into `fillFormExecute`.
+		name: 'a Latin Extended value ("Kraków ł") round-trips through Fill Form and Read Fields',
+		fn: async () => {
+			const formPdf = await makeFormPdf();
+			const { json, buffer } = await runFillForm(formPdf, { 'applicant.name': 'Kraków ł' });
+			assert.equal(json.fieldsFilled, 1);
+
+			const filledPdf = await PDFDocument.load(buffer);
+			assert.equal(filledPdf.getForm().getTextField('applicant.name').getText(), 'Kraków ł');
+		},
+	},
+	{
+		// pdf-lib draws one form field's WHOLE appearance with a single font —
+		// unlike Generate/Stamp's per-run emoji fallback — so an emoji in a
+		// field value can't be silently mixed-font-drawn; `assertFieldAppearanceCoverage`
+		// in `fillForm.ts` must turn that into a clear, named error instead.
+		name: 'an emoji in a field value throws a clear NodeOperationError naming the field and the limitation',
+		fn: async () => {
+			const formPdf = await makeFormPdf();
+			await assert.rejects(
+				() => runFillForm(formPdf, { 'applicant.name': 'Approved ✅' }),
+				(error) => {
+					assert.match(error.message, /applicant\.name/);
+					assert.match(error.message, /emoji/i);
+					return true;
+				},
+			);
+		},
+	},
 ];

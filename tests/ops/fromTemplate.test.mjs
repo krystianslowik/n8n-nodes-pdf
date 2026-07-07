@@ -3,13 +3,11 @@
  * `nodes/PdfToolkit/shared/docRenderer.ts` for why this is rendered with a
  * pdf-lib-based layout engine rather than pdfmake.
  *
- * Assertions search the DECODED content-stream text for the exact hex
- * encoding of individual, single-word markers (see `pdf-content.mjs`'s doc
- * comment) — the renderer draws each WORD as its own `Tj` operator (needed
- * for per-word wrapping/inline bold-italic), so multi-word phrases are
- * split across several `Tj` calls and don't appear as one contiguous hex
- * run. Single-word markers avoid that split and are a real (if low-level)
- * check that specific text was actually drawn.
+ * Assertions use `extractDrawnText` (see `pdf-content.mjs`'s doc comment) to
+ * reconstruct actual drawn Unicode text from the content stream — the
+ * renderer draws each WORD as its own `Tj` operator (needed for per-word
+ * wrapping/inline bold-italic), so single-word markers are used throughout
+ * (a real, if low-level, check that specific text was actually drawn).
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -17,14 +15,10 @@ import { createRequire } from 'node:module';
 import { createMockExecuteFunctions, decodeOutputPdfBuffer } from '../mock-execute.mjs';
 import { makeTinyPng } from '../fixtures.mjs';
 import { createPdfToolkitInstance } from '../load-dist.mjs';
-import { getPageContentText, textToHexOperand } from '../pdf-content.mjs';
+import { extractDrawnText, pageHasEmbeddedFontNamed } from '../pdf-content.mjs';
 
 const require = createRequire(import.meta.url);
 const { PDFDict, PDFDocument, PDFName } = require('pdf-lib');
-
-function containsWord(contentText, word) {
-	return contentText.includes(textToHexOperand(word));
-}
 
 export const tests = [
 	{
@@ -54,10 +48,41 @@ export const tests = [
 			const outputPdf = await PDFDocument.load(decodeOutputPdfBuffer(returnData[0]));
 			assert.ok(outputPdf.getPageCount() >= 1);
 
-			const contentText = getPageContentText(outputPdf, 0);
+			const drawnText = extractDrawnText(outputPdf, 0);
 			for (const word of ['Titleword', 'Paragraphword.', 'Bulletword', 'Headerword', 'Cellword', 'Codeword']) {
-				assert.ok(containsWord(contentText, word), `expected drawn text to include "${word}"`);
+				assert.ok(drawnText.includes(word), `expected drawn text to include "${word}", got: ${drawnText}`);
 			}
+		},
+	},
+	{
+		// Regression test for the reported bug: pdf-lib's standard-14 fonts are
+		// WinAnsi-only and throw "WinAnsi cannot encode ..." for Latin
+		// Extended-A (ł/ż), Cyrillic, or Greek — `shared/fonts.ts`'s bundled
+		// Noto Sans face covers all three in one embed.
+		name: 'Polish/Cyrillic/Greek text ("Zażółć gęślą jaźń — Слово — Λόγος") does not throw and embeds a Noto Sans subset',
+		fn: async () => {
+			const template = { content: [{ type: 'paragraph', text: 'Zażółć gęślą jaźń — Слово — Λόγος' }] };
+			const items = [{ json: {} }];
+			const mockThis = createMockExecuteFunctions(items, {
+				resource: 'generate',
+				operation: 'fromTemplate',
+				template,
+				options: {},
+			});
+
+			const [returnData] = await createPdfToolkitInstance().execute.call(mockThis);
+			assert.ok(returnData[0].json.pageCount >= 1);
+			const outputPdf = await PDFDocument.load(decodeOutputPdfBuffer(returnData[0]));
+			assert.ok(outputPdf.getPageCount() >= 1);
+
+			const drawnText = extractDrawnText(outputPdf, 0);
+			assert.ok(drawnText.includes('Zażółć'), drawnText);
+			assert.ok(drawnText.includes('Слово'), drawnText);
+			assert.ok(drawnText.includes('Λόγος'), drawnText);
+			assert.ok(
+				pageHasEmbeddedFontNamed(outputPdf, 0, 'NotoSans-Regular'),
+				'expected an embedded NotoSans-Regular subset',
+			);
 		},
 	},
 	{
@@ -102,11 +127,11 @@ export const tests = [
 			});
 			const [returnData] = await createPdfToolkitInstance().execute.call(mockThis);
 			const outputPdf = await PDFDocument.load(decodeOutputPdfBuffer(returnData[0]));
-			const contentText = getPageContentText(outputPdf, 0);
+			const drawnText = extractDrawnText(outputPdf, 0);
 			// The default pageNumbers footer format is "Page {{page}} of {{pages}}"
 			// — "Page" and "of" are drawn as standalone word tokens.
-			assert.ok(containsWord(contentText, 'Page'));
-			assert.ok(containsWord(contentText, 'of'));
+			assert.ok(drawnText.includes('Page'), drawnText);
+			assert.ok(drawnText.includes('of'), drawnText);
 		},
 	},
 	{

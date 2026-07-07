@@ -1,8 +1,9 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeProperties } from 'n8n-workflow';
 
 import { binaryPropertyField, outputOptionsField, pageRangeField } from '../../shared/descriptions';
+import { drawUnicodeText, embedUnicodeFonts, measureUnicodeText } from '../../shared/fonts';
 import { parsePageRanges } from '../../shared/pageRanges';
-import { degrees, loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
+import { loadPdfDocument, savePdfAsBinary } from '../../shared/pdf';
 import { resolveStampPosition, type StampPosition } from '../../shared/stampPosition';
 
 const showOnlyForTextWatermark = { resource: ['stamp'], operation: ['textWatermark'] };
@@ -71,9 +72,11 @@ export const textWatermarkDescription: INodeProperties[] = [
 	),
 ];
 
-// Implemented with pdf-lib: embeds Helvetica once, then `page.drawText()`
-// with rotation/opacity for every page selected by the page-range expression
-// (default "all" — same convention as Document > Rotate).
+// Implemented with pdf-lib + `@pdf-lib/fontkit`: embeds the bundled Noto
+// Sans face once (see `shared/fonts.ts` for language/emoji coverage), then
+// draws it (segmented into emoji/non-emoji runs) with rotation/opacity for
+// every page selected by the page-range expression (default "all" — same
+// convention as Document > Rotate).
 export async function textWatermarkExecute(
 	this: IExecuteFunctions,
 	itemIndex: number,
@@ -105,23 +108,24 @@ export async function textWatermarkExecute(
 		? Array.from({ length: pageCount }, (_, index) => index)
 		: parsePageRanges(pageRanges, pageCount, this.getNode(), itemIndex);
 
-	const font = await pdf.embedFont('Helvetica');
-	const textWidth = font.widthOfTextAtSize(text, fontSize);
-	const textHeight = font.heightAtSize(fontSize);
+	const bundle = await embedUnicodeFonts(pdf);
+	const textWidth = measureUnicodeText(bundle, text, 'regular', fontSize);
+	const textHeight = bundle.fonts.regular.heightAtSize(fontSize);
 
 	const pages = pdf.getPages();
 	for (const pageIndex of pageIndices) {
 		const page = pages[pageIndex];
 		const { width, height } = page.getSize();
 		const { x, y } = resolveStampPosition(position, width, height, textWidth, textHeight);
-		page.drawText(text, {
-			x,
-			y,
-			size: fontSize,
-			font,
-			opacity,
-			rotate: degrees(rotation),
-		});
+		drawUnicodeText(
+			page,
+			text,
+			bundle,
+			{ x, y, size: fontSize, style: 'regular', opacity, rotationDegrees: rotation },
+			this.getNode(),
+			'Text Watermark',
+			itemIndex,
+		);
 	}
 
 	const outputFileName = options.outputFileName ?? 'watermarked.pdf';

@@ -2,12 +2,13 @@
  * Stamp > Text Watermark: text, position, opacity, rotation, font size,
  * applied to all pages or a range.
  *
- * pdf-lib cannot extract rendered text (see `tests/pdf-content.mjs`), so
- * these tests assert two honest, structural things instead: (1) each
- * stamped page's content stream grew (drawing operators were really added),
- * and (2) the hex-encoded operand of the watermark text is present in that
- * page's decoded content stream (the text was really drawn, not just
- * "some content" added) — NOT that a human would see the text rendered a
+ * pdf-lib cannot extract rendered text, so these tests assert two honest,
+ * structural things instead: (1) each stamped page's content stream grew
+ * (drawing operators were really added), and (2) `extractDrawnText` (see
+ * `tests/pdf-content.mjs`) — which reverses the embedded custom font's glyph
+ * IDs back to Unicode text via its `ToUnicode` CMap — reports the watermark
+ * text present on that page (the text was really drawn, not just "some
+ * content" added) — NOT that a human would see the text rendered a
  * particular way on screen.
  */
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ import { createRequire } from 'node:module';
 import { createMockExecuteFunctions, decodeOutputPdfBuffer, itemWithPdf } from '../mock-execute.mjs';
 import { makeDistinguishablePdf } from '../fixtures.mjs';
 import { createPdfToolkitInstance } from '../load-dist.mjs';
-import { getPageContentBytes, getPageContentText, textToHexOperand } from '../pdf-content.mjs';
+import { extractDrawnText, getPageContentBytes } from '../pdf-content.mjs';
 
 const require = createRequire(import.meta.url);
 const { PDFDocument } = require('pdf-lib');
@@ -55,17 +56,16 @@ export const tests = [
 			assert.equal(json.stampedPageCount, 3);
 			assert.equal(stamped.getPageCount(), 3, 'watermarking must not change the page count');
 
-			const hexMarker = textToHexOperand('CONFIDENTIAL');
 			for (let index = 0; index < 3; index++) {
 				const stampedLength = getPageContentBytes(stamped, index).length;
 				assert.ok(
 					stampedLength > originalLengths[index],
 					`page ${index} content stream must grow after stamping`,
 				);
-				const text = getPageContentText(stamped, index);
+				const drawnText = extractDrawnText(stamped, index);
 				assert.ok(
-					text.toUpperCase().includes(hexMarker),
-					`page ${index} content stream must contain the watermark text's drawn operand`,
+					drawnText.includes('CONFIDENTIAL'),
+					`page ${index} content stream must contain the watermark text's drawn operand, got: ${drawnText}`,
 				);
 			}
 		},
@@ -80,11 +80,29 @@ export const tests = [
 			});
 			assert.equal(json.stampedPageCount, 1);
 
-			const hexMarker = textToHexOperand('DRAFT');
-			const page1Text = getPageContentText(stamped, 0);
-			const page2Text = getPageContentText(stamped, 1);
-			assert.ok(!page1Text.toUpperCase().includes(hexMarker), 'page 1 must NOT be stamped');
-			assert.ok(page2Text.toUpperCase().includes(hexMarker), 'page 2 must be stamped');
+			const page1Text = extractDrawnText(stamped, 0);
+			const page2Text = extractDrawnText(stamped, 1);
+			assert.ok(!page1Text.includes('DRAFT'), 'page 1 must NOT be stamped');
+			assert.ok(page2Text.includes('DRAFT'), 'page 2 must be stamped');
+		},
+	},
+	{
+		// Regression test for the reported bug ("WinAnsi cannot encode ł") plus
+		// emoji support — `shared/fonts.ts`'s bundled Noto Sans/Noto Emoji
+		// faces, not pdf-lib's WinAnsi-only Helvetica.
+		name: 'Polish text with an emoji ("Słowik ✅") does not throw and is drawn',
+		fn: async () => {
+			const original = await makeDistinguishablePdf(1);
+			const originalPdf = await PDFDocument.load(original);
+			const originalLength = getPageContentBytes(originalPdf, 0).length;
+
+			const { pdf: stamped } = await runTextWatermark(original, { text: 'Słowik ✅' });
+			const stampedLength = getPageContentBytes(stamped, 0).length;
+			assert.ok(stampedLength > originalLength, 'content stream must grow after stamping');
+
+			const drawnText = extractDrawnText(stamped, 0);
+			assert.ok(drawnText.includes('Słowik'), drawnText);
+			assert.ok(drawnText.includes('✅'), drawnText);
 		},
 	},
 ];
