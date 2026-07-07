@@ -1,58 +1,61 @@
 {
-    "name": "n8n-nodes-pdf",
-    "version": "0.2.0",
-    "description": "n8n community node for local, in-process PDF operations (merge, split, rotate/reorder/delete pages, generate from template/Markdown/images, fill and read forms, watermark and page numbers, text/metadata/image extraction) with zero external services.",
-    "license": "MIT",
-    "homepage": "https://github.com/krystianslowik/n8n-nodes-pdf",
-    "bugs": {
-        "url": "https://github.com/krystianslowik/n8n-nodes-pdf/issues"
-    },
-    "keywords": [
-        "n8n-community-node-package"
-    ],
-    "author": {
-        "name": "Krystian Słowik",
-        "email": "krystian.slowik@n8n.io"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/krystianslowik/n8n-nodes-pdf.git"
-    },
-    "scripts": {
-        "build": "n8n-node build && node scripts/esbuild-bundle.mjs",
-        "build:watch": "tsc --watch",
-        "dev": "n8n-node dev",
-        "lint": "n8n-node lint",
-        "lint:fix": "n8n-node lint --fix",
-        "scan": "node scripts/scan-check.mjs",
-        "test": "npm run build && node tests/run-all.mjs",
-        "release": "n8n-node release",
-        "prepublishOnly": "n8n-node prerelease"
-    },
-    "files": [
-        "dist",
-        "README.md",
-        "LICENSE"
-    ],
-    "n8n": {
-        "n8nNodesApiVersion": 1,
-        "strict": true,
-        "credentials": [],
-        "nodes": [
-            "dist/nodes/PdfToolkit/PdfToolkit.node.js"
-        ]
-    },
-    "devDependencies": {
-        "@n8n/node-cli": "*",
-        "@n8n/scan-community-package": "^0.24.0",
-        "esbuild": "^0.28.1",
-        "eslint": "9.32.0",
-        "pdf-lib": "^1.17.1",
-        "prettier": "3.6.2",
-        "release-it": "^19.0.4",
-        "typescript": "5.9.2"
-    },
-    "peerDependencies": {
-        "n8n-workflow": "*"
-    }
+	"name": "n8n-nodes-pdf",
+	"version": "0.2.0",
+	"description": "n8n community node for local, in-process PDF operations (merge, split, rotate/reorder/delete pages, generate from template/Markdown/images, fill and read forms, watermark and page numbers, text/metadata/image extraction) with zero external services.",
+	"license": "MIT",
+	"homepage": "https://github.com/krystianslowik/n8n-nodes-pdf",
+	"bugs": {
+		"url": "https://github.com/krystianslowik/n8n-nodes-pdf/issues"
+	},
+	"keywords": [
+		"n8n-community-node-package"
+	],
+	"author": {
+		"name": "Krystian Słowik",
+		"email": "krystian.slowik@n8n.io"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/krystianslowik/n8n-nodes-pdf.git"
+	},
+	"scripts": {
+		"build": "n8n-node build && node scripts/esbuild-bundle.mjs",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"scan": "node scripts/scan-check.mjs",
+		"test": "npm run build && node tests/run-all.mjs",
+		"release": "n8n-node release",
+		"prepublishOnly": "n8n-node prerelease"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [],
+		"nodes": [
+			"dist/nodes/PdfToolkit/PdfToolkit.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "^0.37.4",
+		"@n8n/scan-community-package": "^0.24.0",
+		"esbuild": "^0.28.1",
+		"eslint": "9.32.0",
+		"pdf-lib": "^1.17.1",
+		"prettier": "3.9.4",
+		"release-it": "^19.0.4",
+		"typescript": "5.9.2"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	},
+	"engines": {
+		"node": ">=22.22.0"
+	}
 }
