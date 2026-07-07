@@ -127,5 +127,8 @@ jobs:
           npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
           NAME=$(npm pkg get name | tr -d '"')
           npm pkg set name="@${GITHUB_REPOSITORY_OWNER}/${NAME}"
-          npm publish --registry https://npm.pkg.github.com --provenance=false
+          # --ignore-scripts: the prepublishOnly hook (n8n-node prerelease)
+          # already ran for the canonical npmjs publish and fails outside the
+          # release-it context; the built dist/ is published as-is.
+          npm publish --registry https://npm.pkg.github.com --provenance=false --ignore-scripts
           git checkout -- package.json
