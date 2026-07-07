@@ -15,7 +15,6 @@ per-document fees, and no data leaving your machine.
 [Limits](#limits) ·
 [Credentials](#credentials) ·
 [Compatibility](#compatibility) ·
-[Migrating from n8n-nodes-pdfkit](#migrating-from-n8n-nodes-pdfkit) ·
 [Resources](#resources) ·
 [Version history](#version-history)
 
@@ -164,14 +163,6 @@ workflow.
 Requires n8n with community-node support (`n8nNodesApiVersion: 1`). No
 minimum n8n version is pinned; the node relies only on standard binary-data
 helpers.
-
-## Migrating from n8n-nodes-pdfkit
-
-If you used `n8n-nodes-pdfkit` (unmaintained since 2023) to turn images into
-a PDF, **Generate → From Images** does the same job. Point it at the same
-image binaries and you get the same one-page-per-image PDF. The rest of this
-package (merge, split, forms, watermarks, extraction) covers things
-`n8n-nodes-pdfkit` never did.
 
 ## Resources
 

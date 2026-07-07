@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.3 - 2026-07-07
+
+Documentation and comment cleanup, no functional changes: added a workflow
+screenshot to the README, removed the n8n-nodes-pdfkit migration section,
+and refreshed code comments that still described the pre-0.2.0 scaffold
+state.
+
 ## 0.2.2 - 2026-07-07
 
 Removed Extract > Text and the Secure resource (Encrypt, Decrypt, Set

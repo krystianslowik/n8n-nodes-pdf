@@ -98,10 +98,9 @@ export class PdfToolkit implements INodeType {
 		defaults: {
 			name: 'PDF Toolkit',
 		},
-		// Note: this node works heavily with binary data (PDF files), which AI
-		// Agent tools generally don't support well. `usableAsTool: true` is set
-		// per n8n's community-nodes lint rule default recommendation; revisit
-		// once real PDF logic (and thus real limitations) exist.
+		// This node works heavily with binary data (PDF files), which AI Agent
+		// tools generally don't support well. `usableAsTool: true` is kept per
+		// n8n's community-nodes lint rule default recommendation.
 		usableAsTool: true,
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
@@ -159,11 +158,10 @@ export class PdfToolkit implements INodeType {
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				// Resolve (and validate) the binary input BEFORE calling the
-				// operation's stub, per the scaffold spec. This throws a clear,
-				// operation-naming error if the configured binary field is missing
-				// on this item, instead of letting a stub fail later with a less
-				// helpful message.
+				// Resolve (and validate) the binary input BEFORE running the
+				// operation, so a missing binary field fails with a clear,
+				// operation-naming error instead of a less helpful one from
+				// deeper inside the operation.
 				const binaryParamName = binaryInputParamMaps[resource]?.[operation];
 				if (binaryParamName) {
 					const binaryPropertyName = this.getNodeParameter(
