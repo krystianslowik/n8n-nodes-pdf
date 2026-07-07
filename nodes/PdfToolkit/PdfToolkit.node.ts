@@ -26,7 +26,6 @@ import {
 	generateExecuteMap,
 	generateManyToOneExecuteMap,
 } from './resources/generate';
-import { secureBinaryInputParamMap, secureDescription, secureExecuteMap } from './resources/secure';
 import { stampBinaryInputParamMap, stampDescription, stampExecuteMap } from './resources/stamp';
 import type {
 	BinaryInputParamMap,
@@ -45,7 +44,6 @@ const resourceProperty: INodeProperties = {
 		{ name: 'Extract', value: 'extract' },
 		{ name: 'Form', value: 'form' },
 		{ name: 'Generate', value: 'generate' },
-		{ name: 'Secure', value: 'secure' },
 		{ name: 'Stamp', value: 'stamp' },
 	],
 	default: 'document',
@@ -54,14 +52,13 @@ const resourceProperty: INodeProperties = {
 // One execute map / binary-input map per resource. Keeping these next to the
 // node class (rather than inside each `resources/<resource>/index.ts`) would
 // also work, but centralizing the resource -> map wiring here keeps
-// `execute()` the single place that needs to know about all six resources.
+// `execute()` the single place that needs to know about all five resources.
 const executeMaps: Record<string, ExecuteMap> = {
 	document: documentExecuteMap,
 	generate: generateExecuteMap,
 	form: formExecuteMap,
 	stamp: stampExecuteMap,
 	extract: extractExecuteMap,
-	secure: secureExecuteMap,
 };
 
 const binaryInputParamMaps: Record<string, BinaryInputParamMap> = {
@@ -70,7 +67,6 @@ const binaryInputParamMaps: Record<string, BinaryInputParamMap> = {
 	form: formBinaryInputParamMap,
 	stamp: stampBinaryInputParamMap,
 	extract: extractBinaryInputParamMap,
-	secure: secureBinaryInputParamMap,
 };
 
 // Many-to-one (e.g. Document > Merge: N incoming items → 1 output item, or
@@ -98,7 +94,7 @@ export class PdfToolkit implements INodeType {
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description:
-			'Merge, split, generate, fill, stamp, extract from, and secure PDF files — entirely in-process, no external services',
+			'Merge, split, generate, fill, stamp, and extract from PDF files — entirely in-process, no external services',
 		defaults: {
 			name: 'PDF Toolkit',
 		},
@@ -116,7 +112,6 @@ export class PdfToolkit implements INodeType {
 			...formDescription,
 			...stampDescription,
 			...extractDescription,
-			...secureDescription,
 		],
 	};
 

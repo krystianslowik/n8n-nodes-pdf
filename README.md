@@ -28,7 +28,7 @@ inside the node.
 
 ## Operations
 
-One node, **PDF Toolkit**, with six resources. Operations read their input
+One node, **PDF Toolkit**, with five resources. Operations read their input
 PDF from a binary property (default `data`) and write results to a binary
 property configurable under **Options**.
 
@@ -87,7 +87,6 @@ licenses (all OFL-1.1).
 
 | Operation | Description |
 |---|---|
-| Text | *Not available yet* (see [Limits](#limits)) |
 | Metadata | Read document metadata (title, author, dates, …) |
 | Embedded Images | Extract embedded JPEG images, one binary field per image |
 | Page Count | Get the number of pages |
@@ -96,13 +95,6 @@ Embedded Images extracts the raw image streams without re-encoding, which
 works for JPEG-compressed images — the common case for photos and scans.
 Images stored with other compression filters raise a clear error naming the
 unsupported filter.
-
-### Secure
-
-Encrypt, Decrypt, and Set Permissions are **not available yet**: they need a
-PDF encryption engine, and no suitable one can currently be shipped within
-n8n's community-node security rules. Calling them returns a clear error
-explaining this. See [Limits](#limits).
 
 ## Example usage
 
@@ -147,11 +139,10 @@ whatever binary field the previous node produced (usually `data`).
 
 - **Input size:** binaries over 100 MB are rejected with a clear error rather
   than risking an out-of-memory crash.
-- **Not available yet:** Extract → Text and the Secure resource (Encrypt,
-  Decrypt, Set Permissions). The libraries that provide these capabilities
-  are currently incompatible with n8n's community-node security rules; the
-  operations return a clear error instead of failing silently. They stay on
-  the roadmap.
+- **Roadmap:** text extraction and PDF encryption are planned but need
+  engines (`pdfjs-dist`, `qpdf`/WASM) that are currently incompatible with
+  n8n's community-node security rules; they'll return if a scanner-compatible
+  engine becomes available.
 - **Heavy documents:** operations are CPU-bound and run in-process. Very
   large documents processed concurrently with other busy workloads on the
   same instance may add latency to that instance.
@@ -187,6 +178,10 @@ package — merge, split, forms, watermarks, extraction — is functionality
 
 ## Version history
 
+- **0.2.2** — Removed Extract → Text and the Secure resource (Encrypt,
+  Decrypt, Set Permissions) from the node UI; they were never functional,
+  engine-blocked stubs since 0.2.0. Five resources / 18 operations, all
+  functional.
 - **0.2.1** — Unicode + emoji text support: Generate, Text Watermark, Page
   Numbers, and Fill Form now draw text with bundled Noto Sans/Noto Sans
   Mono/Noto Emoji fonts (Latin Extended, Cyrillic, Greek, monochrome emoji)

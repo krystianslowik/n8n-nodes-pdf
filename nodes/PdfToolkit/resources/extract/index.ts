@@ -4,7 +4,6 @@ import type { BinaryInputParamMap, ExecuteMap } from '../../shared/types';
 import { extractEmbeddedImagesDescription, extractEmbeddedImagesExecute } from './embeddedImages';
 import { extractMetadataDescription, extractMetadataExecute } from './metadata';
 import { extractPageCountDescription, extractPageCountExecute } from './pageCount';
-import { extractTextDescription, extractTextExecute } from './text';
 
 const showOnlyForExtract = { resource: ['extract'] };
 
@@ -15,13 +14,6 @@ const extractOperations: INodeProperties = {
 	noDataExpression: true,
 	displayOptions: { show: showOnlyForExtract },
 	options: [
-		{
-			name: 'Text',
-			value: 'text',
-			description:
-				'Not implemented yet — always throws an error. Extract per-page text, optionally with coordinates (see README).',
-			action: 'Extract text from a PDF',
-		},
 		{
 			name: 'Metadata',
 			value: 'metadata',
@@ -42,29 +34,23 @@ const extractOperations: INodeProperties = {
 			action: 'Get the page count of a PDF',
 		},
 	],
-	// 'metadata' rather than 'text': Extract > Text is a documented stub
-	// (needs pdfjs-dist, currently unavailable — see README's Limits section)
-	// and the default operation must work zero-config.
 	default: 'metadata',
 };
 
 export const extractDescription: INodeProperties[] = [
 	extractOperations,
-	...extractTextDescription,
 	...extractMetadataDescription,
 	...extractEmbeddedImagesDescription,
 	...extractPageCountDescription,
 ];
 
 export const extractExecuteMap: ExecuteMap = {
-	text: extractTextExecute,
 	metadata: extractMetadataExecute,
 	embeddedImages: extractEmbeddedImagesExecute,
 	pageCount: extractPageCountExecute,
 };
 
 export const extractBinaryInputParamMap: BinaryInputParamMap = {
-	text: 'binaryPropertyName',
 	metadata: 'binaryPropertyName',
 	embeddedImages: 'binaryPropertyName',
 	pageCount: 'binaryPropertyName',

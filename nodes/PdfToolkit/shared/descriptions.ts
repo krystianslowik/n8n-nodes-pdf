@@ -2,7 +2,7 @@ import type { INodeProperties } from 'n8n-workflow';
 
 /**
  * Shared property builders used across the Document/Generate/Form/Stamp/
- * Extract/Secure resource description files. Keeping these here avoids
+ * Extract resource description files. Keeping these here avoids
  * repeating the same "Binary Property" / "Options" boilerplate ~20 times
  * across `resources/**`.
  */

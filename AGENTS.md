@@ -24,19 +24,21 @@ see below) and never calls a third-party API.
   below** over any code examples.
 - All code blocks in these docs are **illustrative and incomplete**.
   They **MUST NOT** be copied verbatim or assumed to be the final desired code.
-- 18 of 22 Tier-1 operations are **real** (pdf-lib, esbuild-bundled as a
-  devDependency into `dist/` by `scripts/esbuild-bundle.mjs`, which also
-  injects `scripts/shims/yield.js` to keep pdf-lib's internal `setTimeout`
-  call scanner-legal). Four remain unavailable stubs with a one-line reason
-  each: Extract > Text needs pdfjs-dist, whose Node.js support model relies
-  on banned globals and a `process` environment check; the Secure resource
-  (Encrypt, Decrypt, Set Permissions) needs a qpdf/WASM engine, and the
-  available qpdf-wasm builds reference banned Node globals (`process`,
-  `__dirname`) and require `fs`/`path` at runtime. Never add a runtime
-  `dependencies` entry — new libraries go in `devDependencies` and get
-  bundled via `scripts/esbuild-bundle.mjs`; the scanner check
-  (`npm run scan`, which runs `scripts/scan-check.mjs`) must stay at 0
-  errors.
+- All 18 Tier-1 operations across 5 resources are **real** (pdf-lib,
+  esbuild-bundled as a devDependency into `dist/` by
+  `scripts/esbuild-bundle.mjs`, which also injects `scripts/shims/yield.js`
+  to keep pdf-lib's internal `setTimeout` call scanner-legal). Extract > Text
+  and the Secure resource (Encrypt, Decrypt, Set Permissions) were removed
+  from the node UI in 0.2.2 — they were engine-blocked stubs since 0.2.0 and
+  never functional. One line each on why, for future contributors
+  considering re-adding them: Extract > Text needs pdfjs-dist, whose Node.js
+  support model relies on banned globals and a `process` environment check;
+  Secure needs a qpdf/WASM engine, and the available qpdf-wasm builds
+  reference banned Node globals (`process`, `__dirname`) and require
+  `fs`/`path` at runtime. Never add a runtime `dependencies` entry — new
+  libraries go in `devDependencies` and get bundled via
+  `scripts/esbuild-bundle.mjs`; the scanner check (`npm run scan`, which runs
+  `scripts/scan-check.mjs`) must stay at 0 errors.
 - Text drawing uses bundled Noto fonts (Sans/Mono/Emoji TTFs from
   `@expo-google-fonts/*` devDeps) inlined by esbuild's binary loader
   (`nodes/PdfToolkit/shared/fonts.ts`) and embedded per document with
@@ -60,14 +62,13 @@ There are two main folders in this project:
 │       ├── PdfToolkit.node.ts
 │       ├── PdfToolkit.node.json
 │       ├── pdfToolkit.svg
-│       ├── shared/            # common property builders + stub-error helper
+│       ├── shared/            # common property builders
 │       └── resources/
 │           ├── document/      # Merge, Split, Extract Pages, Rotate, Reorder, Delete Pages
 │           ├── generate/      # From Template, From Markdown, From Images
 │           ├── form/          # Read Fields, Fill Form
 │           ├── stamp/         # Text/Image Watermark, Page Numbers, Overlay PDF
-│           ├── extract/       # Text, Metadata, Embedded Images, Page Count
-│           └── secure/        # Encrypt, Decrypt, Set Permissions
+│           └── extract/       # Metadata, Embedded Images, Page Count
 ├── scripts/
 │   ├── esbuild-bundle.mjs # bundles pdf-lib into dist/ post-build (see above)
 │   ├── scan-check.mjs     # local stand-in for the scanner CLI, run via `npm run scan`

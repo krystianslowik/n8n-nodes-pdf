@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.2 - 2026-07-07
+
+Removed Extract > Text and the Secure resource (Encrypt, Decrypt, Set
+Permissions) from the node UI. They were never functional — engine-blocked
+stubs since 0.2.0 that always threw a clear "not available" error (see
+0.2.0's changelog entry for the pdfjs-dist/qpdf-wasm blockers) — and a
+removed menu entry is cleaner than a dead one users could still click into.
+They return if/when a scanner-compatible engine exists for text extraction
+or PDF encryption. The node now has 5 resources / 18 operations, all
+functional.
+
 ## 0.2.1 - 2026-07-07
 
 Unicode and emoji text support for every text-drawing operation. Generate
