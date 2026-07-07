@@ -86,7 +86,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Preflight
+        # Fail fast if the tag doesn't match package.json, and detect versions
+        # already on npm (e.g. a re-tag after a partial release) so the publish
+        # can be skipped instead of failing the whole run.
+        id: preflight
+        run: |
+          VERSION=$(npm pkg get version | tr -d '"')
+          NAME=$(npm pkg get name | tr -d '"')
+          if [ "$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already on npm — skipping publish."
+            echo "already-published=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Release
+        if: steps.preflight.outputs.already-published != 'true'
         # Publishes to npm with a provenance attestation (requires id-token: write above).
         # Lint and build run automatically as part of the release process.
         #
@@ -108,6 +126,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME}"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists — skipping."
+            exit 0
+          fi
           awk -v v="$VERSION" '$0 ~ "^## " v " " {flag=1; next} /^## /{flag=0} flag' CHANGELOG.md > /tmp/release-notes.md
           if [ -s /tmp/release-notes.md ]; then
             gh release create "$VERSION" --title "v$VERSION" --notes-file /tmp/release-notes.md --verify-tag
