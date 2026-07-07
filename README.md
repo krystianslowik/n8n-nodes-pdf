@@ -7,6 +7,8 @@ per-document fees, and no data leaving your machine.
 
 [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/sustainable-use-license/) workflow automation platform.
 
+![PDF Toolkit in an n8n workflow: an HTTP Request downloads a PDF form and the Read Fields operation returns its 112 fields as JSON](https://raw.githubusercontent.com/krystianslowik/n8n-nodes-pdf/main/.github/workflow-example.png)
+
 [Installation](#installation) ·
 [Operations](#operations) ·
 [Example usage](#example-usage) ·
